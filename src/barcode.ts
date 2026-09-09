@@ -1,4 +1,5 @@
 import { readBarcodesFromImageData, setZXingModuleOverrides } from "zxing-wasm/reader";
+import type { DecodedBarcode } from "./types.js";
 
 /**
  * Points zxing-wasm at wherever you host its `zxing_reader.wasm` binary (it ships in
@@ -13,10 +14,7 @@ export function configureZxingWasmPath(wasmDirUrl: string): void {
   });
 }
 
-export interface DecodedBarcode {
-  text: string;
-  format: string;
-}
+export type { DecodedBarcode } from "./types.js";
 
 /**
  * Decodes every barcode/QR symbol found in the image. A boarding pass's IATA BCBP data

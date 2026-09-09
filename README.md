@@ -81,6 +81,15 @@ console.log(result.fields);
 Hand `result.fields` straight to your teammate's eligibility service as JSON; nothing
 else in this package needs to reach a network boundary.
 
+## Regression fixtures
+
+`fixtures/` holds the growing regression suite — built entirely from real reported
+tickets, not synthetic examples, per the lessons learned from the prior ID-scanning
+project. It starts empty. When a real ticket produces a wrong or missing field, capture
+it with `scanTicket(input, { includeDebugInfo: true })` (see `fixtures/README.md` for
+the full workflow) and add a fixture; `npm test` runs every fixture on every change, so
+a fix for one report can't silently break a previously-fixed one.
+
 ## Setup
 
 1. Host the three OCR model assets (`det_model.onnx`, `rec_model.onnx`,

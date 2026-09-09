@@ -11,9 +11,17 @@ import { rasterizePdf } from "./pdf.js";
 import { cropQuadToCanvas } from "./perspective.js";
 import { buildCharset, RecCharset, recognizeLine } from "./recognize.js";
 import { deriveTripType, extractFieldsFromOcrLines } from "./textExtraction.js";
-import type { RecognizedTextLine, TicketField, TicketFields, TicketScanProvenance, TicketScanResult } from "./types.js";
+import type {
+  DecodedBarcode,
+  RecognizedTextLine,
+  TicketField,
+  TicketFields,
+  TicketScanPageDebugInfo,
+  TicketScanProvenance,
+  TicketScanResult,
+} from "./types.js";
 
-const ENGINE_VERSION = "ticket-scanner/bcbp+ppocrv5-mobile-onnxruntime-web@0.1.0";
+const ENGINE_VERSION = "ticket-scanner/bcbp+ppocrv5-mobile-onnxruntime-web@0.2.0";
 const REC_LINE_HEIGHT = 48;
 
 /** Point onnxruntime-web at wherever you host its .wasm binaries. Call once at app startup. */
@@ -94,6 +102,8 @@ interface PageScanResult {
   barcodeFound: boolean;
   barcodeFormat?: string;
   rawOcrText: string;
+  lines: RecognizedTextLine[];
+  barcodes: DecodedBarcode[];
 }
 
 /**
@@ -150,6 +160,8 @@ async function scanOnePage(canvas: HTMLCanvasElement, config: OcrModelConfig): P
     barcodeFound,
     barcodeFormat,
     rawOcrText: lines.map((l) => l.text).join("\n"),
+    lines,
+    barcodes,
   };
 }
 
@@ -157,6 +169,12 @@ export type ScanInput = ImageInput | ArrayBuffer | Uint8Array;
 
 export interface ScanTicketOptions {
   modelConfig?: OcrModelConfig;
+  /**
+   * Include the raw per-page OCR lines and decoded barcode payloads in the result.
+   * Off by default — turn it on when capturing a regression fixture from a real report
+   * (see fixtures/README.md), not for normal calls.
+   */
+  includeDebugInfo?: boolean;
 }
 
 function isPdfInput(input: ScanInput): input is ArrayBuffer | Uint8Array {
@@ -196,17 +214,23 @@ export async function scanTicket(input: ScanInput, options: ScanTicketOptions = 
     rawOcrText: pageResults.map((p) => p.rawOcrText).join("\n---\n"),
   };
 
-  return { fields, provenance };
+  const debug: TicketScanPageDebugInfo[] | undefined = options.includeDebugInfo
+    ? pageResults.map((p) => ({ lines: p.lines, barcodes: p.barcodes }))
+    : undefined;
+
+  return debug ? { fields, provenance, debug } : { fields, provenance };
 }
 
 export type { ImageInput } from "./imageUtils.js";
 export { defaultModelConfig } from "./config.js";
 export type { OcrModelConfig } from "./config.js";
 export type {
+  DecodedBarcode,
   FieldSource,
   RecognizedTextLine,
   TicketField,
   TicketFields,
+  TicketScanPageDebugInfo,
   TicketScanProvenance,
   TicketScanResult,
 } from "./types.js";

@@ -47,7 +47,26 @@ export interface TicketScanProvenance {
   rawOcrText?: string;
 }
 
+/** A decoded barcode/QR symbol, before (or in place of) a successful BCBP parse. */
+export interface DecodedBarcode {
+  text: string;
+  format: string;
+}
+
+/**
+ * The exact raw material a regression fixture needs to reproduce a real report without
+ * re-running the OCR/barcode models: every recognized text line and every decoded
+ * barcode symbol from one page, in the shape `extractFieldsFromOcrLines`/`parseBcbp`
+ * consume directly. See fixtures/README.md for the capture workflow.
+ */
+export interface TicketScanPageDebugInfo {
+  lines: RecognizedTextLine[];
+  barcodes: DecodedBarcode[];
+}
+
 export interface TicketScanResult {
   fields: TicketFields;
   provenance: TicketScanProvenance;
+  /** Present only when `ScanTicketOptions.includeDebugInfo` is set — one entry per page. */
+  debug?: TicketScanPageDebugInfo[];
 }
