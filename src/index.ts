@@ -17,6 +17,7 @@ import type {
   TicketField,
   TicketFields,
   TicketScanPageDebugInfo,
+  TicketScanPageProvenance,
   TicketScanProvenance,
   TicketScanResult,
 } from "./types.js";
@@ -24,7 +25,20 @@ import type {
 const ENGINE_VERSION = "ticket-scanner/bcbp+ppocrv5-mobile-onnxruntime-web@0.2.0";
 const REC_LINE_HEIGHT = 48;
 
-/** Point onnxruntime-web at wherever you host its .wasm binaries. Call once at app startup. */
+/**
+ * Point onnxruntime-web at wherever you host its .wasm binaries. Call once at app
+ * startup.
+ *
+ * The hosted `.wasm` binary MUST be from the exact same `onnxruntime-web` version as
+ * the JS bindings this package was built against (currently pinned to `1.29.0` in
+ * `package.json` — deliberately an exact version, not a range, for this reason). A
+ * version mismatch between the two throws opaque, hard-to-diagnose errors at model-load
+ * time rather than a clear "version mismatch" message — this bit the sibling id-ocr-web
+ * project during its own onnxruntime-web integration. If you bump `onnxruntime-web`
+ * here, re-host the matching `.wasm` build at the same time. The same rule applies to
+ * `configureZxingWasmPath` and `configurePdfWorker` below, for their own wasm/worker
+ * assets.
+ */
 export function configureOrtWasmPaths(pathOrUrl: string): void {
   ort.env.wasm.wasmPaths = pathOrUrl;
 }
@@ -99,6 +113,7 @@ function mergeTicketFields(...results: TicketFields[]): TicketFields {
 
 interface PageScanResult {
   fields: TicketFields;
+  imageHash: string;
   barcodeFound: boolean;
   barcodeFormat?: string;
   rawOcrText: string;
@@ -114,6 +129,7 @@ interface PageScanResult {
  * date, passenger counts) and to cover documents with no barcode at all.
  */
 async function scanOnePage(canvas: HTMLCanvasElement, config: OcrModelConfig): Promise<PageScanResult> {
+  const imageHash = await hashCanvas(canvas);
   const barcodes = await decodeBarcodes(canvas);
 
   const bcbpFields: TicketFields = {};
@@ -157,6 +173,7 @@ async function scanOnePage(canvas: HTMLCanvasElement, config: OcrModelConfig): P
 
   return {
     fields: mergeTicketFields(bcbpFields, ocrFields),
+    imageHash,
     barcodeFound,
     barcodeFormat,
     rawOcrText: lines.map((l) => l.text).join("\n"),
@@ -204,14 +221,16 @@ export async function scanTicket(input: ScanInput, options: ScanTicketOptions = 
   const tripType = deriveTripType(fields);
   if (tripType) fields.tripType = tripType;
 
-  const barcodePage = pageResults.find((p) => p.barcodeFound);
+  const pages: TicketScanPageProvenance[] = pageResults.map((p) => ({
+    imageHash: p.imageHash,
+    barcodeFound: p.barcodeFound,
+    barcodeFormat: p.barcodeFormat,
+    rawOcrText: p.rawOcrText,
+  }));
   const provenance: TicketScanProvenance = {
     inputKind: isPdfInput(input) ? "pdf" : "image",
-    barcodeFound: barcodePage !== undefined,
-    barcodeFormat: barcodePage?.barcodeFormat,
-    imageHash: await hashCanvas(canvases[0]),
     engineVersion: ENGINE_VERSION,
-    rawOcrText: pageResults.map((p) => p.rawOcrText).join("\n---\n"),
+    pages,
   };
 
   const debug: TicketScanPageDebugInfo[] | undefined = options.includeDebugInfo
@@ -231,6 +250,7 @@ export type {
   TicketField,
   TicketFields,
   TicketScanPageDebugInfo,
+  TicketScanPageProvenance,
   TicketScanProvenance,
   TicketScanResult,
 } from "./types.js";

@@ -37,14 +37,24 @@ export interface TicketFields {
   tripType?: TicketField<"DOMESTIC" | "INTERNATIONAL">;
 }
 
-export interface TicketScanProvenance {
-  inputKind: "image" | "pdf";
+/**
+ * Provenance for one page (a single image input is always exactly one "page"). Kept
+ * per-page rather than flattened across the whole input — a multi-page PDF's pages are
+ * genuinely different images, each with their own hash/OCR text/barcode result, and
+ * flattening them would silently lose which page a value actually came from.
+ */
+export interface TicketScanPageProvenance {
+  imageHash: string;
   barcodeFound: boolean;
   barcodeFormat?: string;
-  imageHash: string;
+  /** Full OCR text for this page, newline-joined in reading order — kept for debugging/regression fixtures, not needed by callers who only want `fields`. */
+  rawOcrText: string;
+}
+
+export interface TicketScanProvenance {
+  inputKind: "image" | "pdf";
   engineVersion: string;
-  /** Full OCR text, newline-joined in reading order — kept for debugging/regression fixtures, not returned to callers who don't ask for it. */
-  rawOcrText?: string;
+  pages: TicketScanPageProvenance[];
 }
 
 /** A decoded barcode/QR symbol, before (or in place of) a successful BCBP parse. */
