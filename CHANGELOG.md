@@ -5,6 +5,17 @@ every change that touches runtime behavior, so a bug report against a running in
 can always be tied back to the exact code that produced it (`ENGINE_VERSION` is exported
 and appears in every `TicketScanResult.provenance`, and in the demo's version badge).
 
+## 0.3.1
+
+- Fixed the demo's `<script>` tag: it referenced its bundle by a relative path
+  (`./dist/bundle.js`), which the dev server's URL-to-file mapping (`/` -> serves
+  `demo/index.html`'s content, but the browser's actual document location stays `/`)
+  resolved to the wrong URL (`/dist/bundle.js`, 404) — so the whole demo silently never
+  ran, including the Scan button's click handler. Now an absolute path
+  (`/demo/dist/bundle.js`). Caught from a real user's first test run.
+- No scanning behavior changed — `ENGINE_VERSION` bumps anyway, per this changelog's own
+  "bump together" rule, so the version badge always matches what's actually running.
+
 ## 0.3.0
 
 - Added `demo/` — a local, real-browser demo (`npm run demo`) that lets you upload an

@@ -29,6 +29,8 @@
     <pre id="result"></pre>
   </div>
 
-  <script type="module" src="./dist/bundle.js"></script>
+  <!-- Absolute path: the dev server serves this file's content at "/", so a relative
+       "./dist/bundle.js" would resolve against "/" (-> 404) instead of "/demo/". -->
+  <script type="module" src="/demo/dist/bundle.js"></script>
 </body>
 </html>
