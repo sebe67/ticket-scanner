@@ -112,6 +112,15 @@ extracted JSON — run it on any machine with normal internet access (it needs t
 the OCR model bucket; see Setup). It serves onnxruntime-web/zxing-wasm/pdfjs-dist's
 wasm/worker assets straight out of `node_modules`, so there's no CDN dependency.
 
+No real ticket handy? `npm run generate-sample` writes
+`sample-tickets/boarding-pass-sample.png` — a synthetic (clearly-labeled, not-a-real-
+airline) boarding pass with a genuine, scannable PDF417 barcode encoding valid BCBP
+data, plus the same IATA codes printed as plain text. Upload it to the demo to exercise
+the full barcode-first path; there's already a generated copy checked in, and the flight
+date is always "7 days from today" so it never goes stale. The generator's output was
+verified against the real decode/parse/lookup pipeline before being committed (round-trips
+back to `MNL`/`NRT`/Philippines/Japan correctly).
+
 `npm run smoke` is an automated check, not a manual demo: it drives real headless
 Chromium (via Playwright) through an actual round trip of the barcode subsystem —
 encodes a test BCBP payload to a genuine PDF417 image, decodes it back, parses it, and

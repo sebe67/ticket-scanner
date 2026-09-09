@@ -11,7 +11,8 @@
     "test": "tsc -p tsconfig.test.json && node --test dist-test/tests/*.test.js",
     "demo:build": "node scripts/build-demo.mjs",
     "demo": "npm run build && node scripts/build-demo.mjs --serve",
-    "smoke": "npm run build && node scripts/smoke-test.mjs"
+    "smoke": "npm run build && node scripts/smoke-test.mjs",
+    "generate-sample": "node scripts/generate-sample-ticket.mjs"
   },
   "dependencies": {
     "onnxruntime-web": "1.29.0",
