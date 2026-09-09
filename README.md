@@ -62,8 +62,9 @@ consumer ever does.
    value for the same field, the barcode's wins (higher confidence).
 3. **PDF input** is rasterized page-by-page (`pdfjs-dist`) before the same pipeline runs
    on each page; per-field results across pages are merged by confidence.
-4. **Country lookup**: airport IATA codes resolve to countries via a bundled starter
-   table (`src/airportLookup.ts`) — see limitations.
+4. **Country lookup**: airport IATA codes resolve to countries via `src/airportData.ts`,
+   ~9,056 airports generated from OurAirports' public-domain dataset (`node
+   scripts/generate-airport-data.mjs` to refresh) — see limitations.
 
 ## Usage
 
@@ -198,13 +199,17 @@ unversioned layout with a `ppocr_keys_v1.txt` file to the current `v1.1/` layout
   travel date (it picks whichever candidate year is *nearest in time* to the scan, with
   no notion of "this is probably a future booking vs. a kept souvenir") — accepted as a
   known tradeoff, same as it already was for BCBP.
-- **Airport-to-country table is a curated starter set** (`src/airportLookup.ts`),
-  originally covering only Philippine airports plus the international destinations most
-  commonly booked out of the Philippines — not a complete IATA dataset. Real testing
-  already found gaps beyond that original scope (South Africa was entirely absent until
-  0.5.0). An unknown code resolves to `null` (no value beats a wrong one), but expect
-  more gaps; swap in a maintained dataset (e.g. an OurAirports CSV import) once that
-  matters, rather than adding countries one real report at a time indefinitely.
+- **Airport-to-country table is now a comprehensive, generated dataset** (fixed in
+  0.6.0): `src/airportData.ts` covers ~9,056 IATA-coded airports worldwide, generated
+  from OurAirports' public-domain data (`node scripts/generate-airport-data.mjs` to
+  refresh) — not the ~150-entry Philippines-centric hand-curated table from earlier
+  versions, which real testing had already found gaps in (South Africa was entirely
+  absent). An unknown code still resolves to `null`, never a guess. The tradeoff: with
+  ~9,000 real codes, plenty of ordinary English words are real airport codes somewhere
+  (e.g. "THE" is Teresina, Brazil), which widens route-matching's false-positive surface
+  versus the old narrow table — accepted per the lessons-learned doc's own warning about
+  short/generic-word collisions; a real false positive from this is exactly what
+  `fixtures/` exists to catch.
 - **The two-unlabeled-dates fallback picks departure/return by document order, not by
   which resolved date is chronologically earlier** (changed in 0.5.0) — deliberate, to
   avoid a narrow but real failure mode where two independently-year-inferred dates that
@@ -212,21 +217,19 @@ unversioned layout with a `ppocr_keys_v1.txt` file to the current `v1.1/` layout
   same calendar year depending on scan timing, making the second-listed date resolve
   "earlier" than the first. See the comment above `datesInOrder` in
   `src/textExtraction.ts`.
-- **Per-line OCR confidence values are real but not a useful signal at this vocabulary
-  size.** `RecognizedTextLine.confidence` (visible in debug output) often comes out
-  extremely small (~0.0001) even for correctly-recognized, high-contrast printed text —
-  this is standard softmax-of-the-argmax-class math (`src/recognize.ts`), not a
-  double-softmax bug, but the PP-OCRv5 dictionary this defaults to has ~18,385 classes
-  (a large multilingual charset — CJK, Latin, symbols, emoji), and summing `exp()` over
-  that many classes in the denominator mathematically deflates the top class's
-  probability regardless of how "confident" the recognition actually is. This value
-  isn't currently used to gate or filter anything in `src/textExtraction.ts` (every
-  per-field confidence there is a fixed constant, not derived from OCR confidence), so
-  it hasn't caused a wrong result yet — but it also means it's not currently a
-  trustworthy per-line quality signal if you build something that wants one. Whether
-  there's *also* a calibration issue independent of the vocabulary-size effect (e.g. in
-  the input tensor normalization) hasn't been investigated — flagging honestly rather
-  than asserting it's "just vocabulary size, nothing more to check."
+- **Per-line OCR confidence was previously wrong — fixed in 0.6.0.** An earlier version
+  of this doc claimed the ~0.0001-range confidence values were just large-vocabulary
+  softmax deflation and "not a bug." That explanation was wrong: it was a real
+  double-softmax bug (`src/recognize.ts`) — `rec_model.onnx`'s exported graph already
+  applies softmax internally, so its output is already a per-class probability
+  distribution, and the old code ran softmax on it a second time. Confirmed by
+  inspecting the real model's raw output (every timestep's values are non-negative and
+  sum to ~1.0) and by re-running OCR on a real image before and after the fix:
+  recognized text was unchanged, confidence went from ~0.0001 to 0.89–0.99.
+  `RecognizedTextLine.confidence` is now the model's own top-class probability directly.
+  It still isn't used to gate or filter anything in `src/textExtraction.ts` (every
+  per-field confidence there is a fixed constant), but it's now a value worth trusting
+  if you build something that wants one.
 - **Multi-leg BCBP barcodes only yield their first leg.** BCBP encodes additional legs
   (e.g. a connecting flight) via variable-length conditional data this v1 parser doesn't
   walk — see the comment in `src/bcbp.ts`. A round trip is virtually always two separate

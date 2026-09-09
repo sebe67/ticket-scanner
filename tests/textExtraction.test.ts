@@ -14,8 +14,15 @@ test("extracts a route from a known airport-code pair with a dash separator", ()
 });
 
 test("ignores a route-shaped line whose codes aren't real airports", () => {
-  // "THE - AND" looks like a route but neither triplet is a known IATA code.
-  const result = extractFieldsFromOcrLines([line("THE - AND")]);
+  // "ZZZ - QQQ" looks like a route but neither triplet is a known IATA code. Note this
+  // is a narrower net than it sounds: with the full ~9,000-code IATA dataset (added in
+  // 0.6.0), plenty of ordinary English words are real airport codes somewhere in the
+  // world (e.g. "THE" is Teresina, Brazil; "AND" is Anderson, US) — this project accepts
+  // that broader false-positive surface as the tradeoff for real global coverage, per
+  // the lessons-learned doc's own warning about short/generic-word collisions; a real
+  // false positive from this is exactly the kind of thing the fixtures/ workflow exists
+  // to catch and fix.
+  const result = extractFieldsFromOcrLines([line("ZZZ - QQQ")]);
   assert.equal(result.originAirport, undefined);
   assert.equal(result.destinationAirport, undefined);
 });

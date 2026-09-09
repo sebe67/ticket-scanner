@@ -5,6 +5,35 @@ every change that touches runtime behavior, so a bug report against a running in
 can always be tied back to the exact code that produced it (`ENGINE_VERSION` is exported
 and appears in every `TicketScanResult.provenance`, and in the demo's version badge).
 
+## 0.6.0
+
+- **Fixed a real double-softmax bug in OCR confidence** (`src/recognize.ts`). The
+  deployed `rec_model.onnx`'s exported graph already applies softmax internally — its
+  raw output is a per-class probability distribution (confirmed empirically: every
+  timestep's ~18,385 values are non-negative and sum to ~1.0), not raw logits. The
+  previous code assumed raw logits and ran softmax on the output a second time, which
+  silently flattens an already-normalized distribution and produces a confidence value
+  that's tiny (~0.0001) regardless of how confident the model actually is. **This
+  retracts and corrects 0.5.0's README note**, which (wrongly) attributed the low values
+  to the large character vocabulary alone. Fixed by using the model's own top-class
+  value directly. Verified against the real model on a real image: recognized text is
+  unchanged (the argmax was always correct), confidence went from ~0.0001 to 0.89–0.99.
+- **Replaced the hand-curated, Philippines-centric airport table with a generated,
+  comprehensive one.** `src/airportData.ts` is now generated (`node
+  scripts/generate-airport-data.mjs`) from OurAirports' public-domain dataset
+  (~9,056 IATA-coded airports worldwide, every country) instead of ~150 hand-picked
+  entries. Real testing had already found the old table's scope was too narrow (South
+  Africa was entirely missing in 0.5.0) — this replaces the whole approach rather than
+  adding countries one report at a time indefinitely, per the README's own
+  previously-stated intent to do this "once that matters."
+
+  **Side effect worth knowing about:** with ~9,000 real codes instead of ~150, plenty of
+  ordinary English words are now real airport codes somewhere in the world (e.g. "THE"
+  is Teresina, Brazil), which widens route-matching's false-positive surface versus the
+  old narrow table. Accepted as the tradeoff for real global coverage, consistent with
+  the lessons-learned doc's warning about short/generic-word collisions — a real false
+  positive from this is exactly what the fixtures/ workflow exists to catch.
+
 ## 0.5.0
 
 Three fixes from a real Booking.com flight-confirmation screenshot report (JNB<->CPT

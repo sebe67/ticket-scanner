@@ -66,9 +66,14 @@ export async function recognizeLine(
         maxIdx = c;
       }
     }
-    let expSum = 0;
-    for (let c = 0; c < C; c++) expSum += Math.exp(data[offset + c] - maxVal);
-    const prob = 1 / expSum; // softmax probability of the argmax class
+    // rec_model.onnx's exported graph already applies softmax internally — its output
+    // is a per-class probability distribution (each timestep's ~18,385 values are
+    // non-negative and sum to ~1), confirmed by inspecting the real model's raw output.
+    // maxVal here IS the argmax class's probability; re-deriving it via another softmax
+    // over these already-normalized values (as a previous version of this code did)
+    // silently flattens the distribution and produces a "confidence" that's tiny
+    // regardless of how confident the model actually is.
+    const prob = maxVal;
 
     // Standard CTC greedy decode: drop blanks (index 0), collapse consecutive repeats.
     if (maxIdx !== 0 && maxIdx !== prevIdx) {
