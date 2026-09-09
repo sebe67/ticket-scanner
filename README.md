@@ -1,0 +1,134 @@
+# ticket-scanner
+
+Client-side (browser) plane-ticket scanner for an insurance-eligibility flow: scan a
+photo/screenshot or PDF of a plane ticket, get back just the fields that eligibility
+logic needs, as JSON. Runs entirely on-device (WASM) — no image ever leaves the
+browser. The only network calls are the initial (cached) downloads of the OCR model
+and barcode-decoder wasm assets.
+
+## What it extracts
+
+```ts
+interface TicketFields {
+  originCountry?: TicketField<string>;       // e.g. "Philippines"
+  destinationCountry?: TicketField<string>;
+  departureDate?: TicketField<string>;        // ISO 8601, YYYY-MM-DD
+  returnDate?: TicketField<string>;           // present only for a round trip
+  adults?: TicketField<number>;
+  children?: TicketField<number>;
+  tripType?: TicketField<"DOMESTIC" | "INTERNATIONAL">; // derived, not read off the ticket
+}
+```
+
+Deliberately not a general "digitize the whole ticket" schema — seat, gate, class, PNR
+etc. are out of scope because nothing downstream needs them. A field is simply absent
+(not present as a key) when nothing found a trustworthy value for it: **no value is
+better than a wrong value** for something feeding an eligibility check.
+
+Each present field carries `{ value, confidence, source }`, where `source` is
+`"barcode"` (from a decoded IATA BCBP boarding-pass barcode — exact, deterministic),
+`"ocr"` (label/regex-matched from recognized text), or `"derived"` (computed from other
+resolved fields, currently just `tripType`).
+
+Scope note: `destinationCountry` assumes a direct, single-country trip (no multi-city /
+layover-as-destination itineraries) — see "Known limitations" below.
+
+## How it works
+
+1. **Barcode/QR first.** Airline boarding passes almost always carry the passenger's
+   flight data in a PDF417 (sometimes Aztec or QR) barcode, standardized by IATA as BCBP
+   (Bar Coded Boarding Pass, Resolution 792) — a fixed text format with origin/destination
+   airport, flight date, PNR, etc. already structured. Decoding it (`zxing-wasm`) is
+   exact and near-instant, with none of OCR's recognition noise, so it's tried first.
+2. **OCR fallback.** Runs unconditionally afterward (via the same PaddleOCR PP-OCRv5
+   mobile detection/recognition pipeline as the `id-ocr-web` project, over
+   `onnxruntime-web`) to fill in whatever the barcode doesn't cover — a boarding pass
+   never carries return date or passenger counts, and a plain booking-confirmation/
+   itinerary document has no barcode at all. Where both a barcode and OCR produce a
+   value for the same field, the barcode's wins (higher confidence).
+3. **PDF input** is rasterized page-by-page (`pdfjs-dist`) before the same pipeline runs
+   on each page; per-field results across pages are merged by confidence.
+4. **Country lookup**: airport IATA codes resolve to countries via a bundled starter
+   table (`src/airportLookup.ts`) — see limitations.
+
+## Usage
+
+```ts
+import {
+  configureOrtWasmPaths,
+  configureZxingWasmPath,
+  configurePdfWorker,
+  scanTicket,
+} from "ticket-scanner";
+
+// Once at app startup — point each library at wherever you host its wasm/worker assets
+// (they ship in the respective package's node_modules, or use a CDN build).
+configureOrtWasmPaths("/onnxruntime-wasm/");
+configureZxingWasmPath("/zxing-wasm/");
+configurePdfWorker("/pdfjs-dist/pdf.worker.min.mjs");
+
+// Image input: Blob, HTMLImageElement, HTMLCanvasElement, or ImageBitmap.
+const result = await scanTicket(imageBlob);
+
+// PDF input: raw bytes.
+const pdfBytes = await pdfFile.arrayBuffer();
+const result2 = await scanTicket(pdfBytes);
+
+console.log(result.fields);
+// { originCountry: { value: "Philippines", confidence: 0.97, source: "barcode" }, ... }
+```
+
+Hand `result.fields` straight to your teammate's eligibility service as JSON; nothing
+else in this package needs to reach a network boundary.
+
+## Setup
+
+1. Host the three OCR model assets (`det_model.onnx`, `rec_model.onnx`,
+   `ppocr_keys_v1.txt`) publicly-readable, and pass a `modelConfig` (see
+   `defaultModelConfig` in `src/config.ts`) pointing at your own copy — see the
+   "model hosting" limitation below for why the built-in default shouldn't be relied on
+   long-term.
+2. Host `onnxruntime-web`'s `.wasm` binaries, `zxing-wasm`'s `zxing_reader.wasm`, and
+   `pdfjs-dist`'s worker script wherever your app serves static assets, and call the
+   three `configure*` functions once at startup (see Usage above).
+3. `npm install && npm run build`.
+4. `npm test` runs the pure-logic unit tests (BCBP parsing, date parsing, airport
+   lookup, OCR-text field extraction) under plain Node — no browser required for these.
+
+## Known limitations / next steps
+
+- **Untested end-to-end in a real browser.** Built and typechecked against the real
+  `onnxruntime-web`, `zxing-wasm`, and `pdfjs-dist` types (their actual `node_modules`
+  APIs were inspected while writing this, not guessed from memory), and the pure-logic
+  pieces (BCBP parsing, date parsing, airport lookup, OCR-text field extraction) are
+  unit-tested — but the full pipeline hasn't run against a real boarding-pass photo or
+  e-ticket PDF in an actual browser (no browser/model access in the environment this was
+  written in). Test against a handful of real tickets before shipping.
+- **Airport-to-country table is a curated starter set** (`src/airportLookup.ts`),
+  covering Philippine airports plus the international destinations most commonly booked
+  out of the Philippines — not a complete IATA dataset. An unknown code resolves to
+  `null` (no value beats a wrong one), but expect gaps on less-common routes; swap in a
+  maintained dataset (e.g. an OurAirports CSV import) once that matters.
+- **Multi-leg BCBP barcodes only yield their first leg.** BCBP encodes additional legs
+  (e.g. a connecting flight) via variable-length conditional data this v1 parser doesn't
+  walk — see the comment in `src/bcbp.ts`. A round trip is virtually always two separate
+  boarding passes/barcodes in practice, so this mainly affects true multi-leg
+  connections, not the origin/destination/departure-date extraction this project needs.
+- **The OCR-text field extractor (`src/textExtraction.ts`) is a starting point, not a
+  general ticket parser.** Ticket layouts are effectively unbounded across issuers (every
+  airline, every OTA, every itinerary template) — per the lessons learned from the prior
+  ID-scanning project, this should grow from real bug reports and their exact OCR output
+  (reproduced in a disposable script, fixed, added to the regression suite), not be
+  pre-built to handle every format speculatively. Its current heuristics (route =
+  two table-known airport codes joined by a separator; dates = nearest calendar-valid
+  date to a "departure"/"return" label, or chronological order when exactly one or two
+  unlabeled dates exist; passenger counts = "N adult(s)"/"N child(ren)" regexes) are
+  deliberately conservative — no value beats a wrong one — so expect real-world misses on
+  formats not yet seen, not wrong values.
+- **Default OCR model bucket is inherited from the earlier `id-ocr-web` project**
+  (`storage.googleapis.com/idscan_ocr`) — convenient since it's already public, but it's
+  infrastructure this repo doesn't own. Host your own copy for a production deployment
+  (see Setup above) so this package has no runtime dependency outside its control.
+- **No batching** in the OCR pass — each detected text line runs through the recognition
+  model one at a time, same as the prior project. Fine for a single ticket; worth
+  batching if latency becomes a concern.
