@@ -82,32 +82,49 @@ function fullYear(y: number): number {
   return 2000 + y;
 }
 
+export interface DateMatch {
+  value: string;
+  /** Character offset in the (trimmed) input where the matched date text begins. */
+  index: number;
+}
+
 /**
- * Parses one free-text date out of OCR'd ticket text into ISO YYYY-MM-DD, or null if no
- * recognizable, calendar-valid date is present. Tries the formats actually seen on
- * e-tickets/itineraries: "12 SEP 2026", "SEP 12, 2026", "2026-09-12", "09/12/2026" and
- * "12/09/2026" (the numeric-slash case is inherently ambiguous between
- * month-first/day-first; both orderings are tried and only kept if exactly one parses to
- * a valid calendar date, otherwise it's rejected as ambiguous rather than guessed) — and,
- * failing all of those, a bare day+month with no year at all ("17SEP", "SEP 17"), common
- * on boarding-pass mockups/templates that omit the year, with the year inferred the same
+ * Finds one free-text date in OCR'd ticket text and reports both its resolved ISO
+ * value and where in the string it started — the position is what lets
+ * `extractFieldsFromOcrLines`'s ambiguous-date fallback tell a genuine flight date
+ * apart from a "Label: date" formatted metadata date (see `parseFreeTextDate`'s
+ * docs for why that distinction is needed). Returns null if no recognizable,
+ * calendar-valid date is present.
+ *
+ * Tries the formats actually seen on e-tickets/itineraries: "12 SEP 2026",
+ * "SEP 12, 2026", "2026-09-12", "09/12/2026" and "12/09/2026" (the numeric-slash case
+ * is inherently ambiguous between month-first/day-first; both orderings are tried and
+ * only kept if exactly one parses to a valid calendar date, otherwise it's rejected as
+ * ambiguous rather than guessed), "01Jun2026" (zero separators at all — a real
+ * Philippine Airlines e-ticket receipt prints dates exactly this way) — and, failing
+ * all of those, a bare day+month with no year at all ("17SEP", "SEP 17"), common on
+ * boarding-pass mockups/templates that omit the year, with the year inferred the same
  * way `resolveBcbpJulianDate` infers one for a BCBP barcode's yearless day-of-year.
  */
-export function parseFreeTextDate(text: string, referenceDate: Date = new Date()): string | null {
+export function findFreeTextDateMatch(text: string, referenceDate: Date = new Date()): DateMatch | null {
   const t = text.trim();
 
   const iso = t.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
   if (iso) {
-    const [, y, m, d] = iso.map(Number) as unknown as [number, number, number, number];
-    return isValidCalendarDate(y, m, d) ? toIsoDate(y, m, d) : null;
+    const [y, m, d] = iso.slice(1).map(Number) as [number, number, number];
+    if (isValidCalendarDate(y, m, d)) return { value: toIsoDate(y, m, d), index: iso.index! };
   }
 
-  const dayMonthYear = t.match(/\b(\d{1,2})[\s-]?([A-Za-z]{3,9})[\s,.-]+(\d{2,4})\b/);
+  // Separators are optional (`*` not `+`) between month and year: real airline
+  // e-tickets routinely print dates with zero separators at all, e.g. "01Jun2026" (a
+  // real PAL e-ticket receipt) — without this, that falls through to the yearless-date
+  // fallback below and discards a perfectly good, explicit year.
+  const dayMonthYear = t.match(/\b(\d{1,2})[\s-]?([A-Za-z]{3,9})[\s,.-]*(\d{2,4})\b/);
   if (dayMonthYear) {
     const day = Number(dayMonthYear[1]);
     const month = MONTHS[dayMonthYear[2].toLowerCase()];
     const year = fullYear(Number(dayMonthYear[3]));
-    if (month && isValidCalendarDate(year, month, day)) return toIsoDate(year, month, day);
+    if (month && isValidCalendarDate(year, month, day)) return { value: toIsoDate(year, month, day), index: dayMonthYear.index! };
   }
 
   const monthDayYear = t.match(/\b([A-Za-z]{3,9})[\s.-]+(\d{1,2})[\s,.-]+(\d{2,4})\b/);
@@ -115,7 +132,7 @@ export function parseFreeTextDate(text: string, referenceDate: Date = new Date()
     const month = MONTHS[monthDayYear[1].toLowerCase()];
     const day = Number(monthDayYear[2]);
     const year = fullYear(Number(monthDayYear[3]));
-    if (month && isValidCalendarDate(year, month, day)) return toIsoDate(year, month, day);
+    if (month && isValidCalendarDate(year, month, day)) return { value: toIsoDate(year, month, day), index: monthDayYear.index! };
   }
 
   const slash = t.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/);
@@ -128,9 +145,9 @@ export function parseFreeTextDate(text: string, referenceDate: Date = new Date()
     // Only trust it when the two readings agree, or exactly one of them is even possible
     // (e.g. "14" can't be a month, so day-first is unambiguous) — otherwise it's a
     // genuinely ambiguous date and no value beats a possibly-wrong one.
-    if (asMonthFirst && asDayFirst && a === b) return toIsoDate(year, a, b);
-    if (asMonthFirst && !asDayFirst) return toIsoDate(year, a, b);
-    if (asDayFirst && !asMonthFirst) return toIsoDate(year, b, a);
+    if (asMonthFirst && asDayFirst && a === b) return { value: toIsoDate(year, a, b), index: slash.index! };
+    if (asMonthFirst && !asDayFirst) return { value: toIsoDate(year, a, b), index: slash.index! };
+    if (asDayFirst && !asMonthFirst) return { value: toIsoDate(year, b, a), index: slash.index! };
     return null;
   }
 
@@ -140,7 +157,7 @@ export function parseFreeTextDate(text: string, referenceDate: Date = new Date()
     const month = MONTHS[dayMonthNoYear[2].toLowerCase()];
     if (month) {
       const resolved = resolveMonthDayWithInferredYear(month, day, referenceDate);
-      if (resolved) return resolved;
+      if (resolved) return { value: resolved, index: dayMonthNoYear.index! };
     }
   }
 
@@ -150,9 +167,14 @@ export function parseFreeTextDate(text: string, referenceDate: Date = new Date()
     const day = Number(monthDayNoYear[2]);
     if (month) {
       const resolved = resolveMonthDayWithInferredYear(month, day, referenceDate);
-      if (resolved) return resolved;
+      if (resolved) return { value: resolved, index: monthDayNoYear.index! };
     }
   }
 
   return null;
+}
+
+/** Convenience wrapper over findFreeTextDateMatch for callers that don't need the match position. */
+export function parseFreeTextDate(text: string, referenceDate: Date = new Date()): string | null {
+  return findFreeTextDateMatch(text, referenceDate)?.value ?? null;
 }

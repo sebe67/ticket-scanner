@@ -5,6 +5,38 @@ every change that touches runtime behavior, so a bug report against a running in
 can always be tied back to the exact code that produced it (`ENGINE_VERSION` is exported
 and appears in every `TicketScanResult.provenance`, and in the demo's version badge).
 
+## 0.7.0
+
+Two compounding fixes from a real Philippine Airlines e-ticket PDF report: barcode
+scanning correctly produced `departureDate`, but `returnDate` was missing entirely even
+though `05Jun2026` was clearly printed on the page (the barcode only ever encodes the
+outbound leg, so `returnDate` always has to come from the OCR fallback).
+
+- **`findFreeTextDateMatch`'s day-month-year pattern now accepts zero separators before
+  the year** (`src/dateParsing.ts`) — this airline prints dates like `01Jun2026` with no
+  separator at all between the month and the year. The old pattern required at least one
+  separator character there, so this fell through to the yearless-date fallback and
+  discarded the real, explicit printed year. (`monthDayYear`'s separator was left
+  unchanged — not demonstrated by any real report yet.)
+- **The unlabeled-date fallback now skips a date match with a colon earlier in the same
+  line**, rather than giving up entirely once it sees more than two unique dates
+  (`src/textExtraction.ts`). This e-ticket's page also carries an issuance date
+  (`Date: 08May2026`) and a fare-validity date (`NVA (3): 31Jul2026`, printed twice) —
+  four unique dates in total, which used to trip the "3+ unlabeled dates is too
+  ambiguous, don't guess" rule and threw away the real, extractable return date along
+  with the noise. Both metadata dates here are "Label: date" formatted; a colon before
+  the match is a general signal of that, without needing airline-specific knowledge.
+  `parseFreeTextDate` was refactored into `findFreeTextDateMatch`, which reports the
+  match's position in the string alongside its resolved value, so this distinction can be
+  made without re-scanning the line. (The first attempt at this fix — matching only when
+  the date was the entire trimmed line — broke the existing Booking.com fixture, whose
+  real flight-date lines are compound, e.g. "Thu 10 Apr· 05:55 - ...". The
+  colon-position check handles both correctly.)
+
+Adds a third real regression fixture
+(`fixtures/2026-09-09-real-eticket-compact-dates-and-metadata-dates.fixture.json`)
+covering both fixes together, from the exact reported OCR lines.
+
 ## 0.6.0
 
 - **Fixed a real double-softmax bug in OCR confidence** (`src/recognize.ts`). The

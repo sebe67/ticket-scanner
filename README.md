@@ -230,6 +230,19 @@ unversioned layout with a `ppocr_keys_v1.txt` file to the current `v1.1/` layout
   It still isn't used to gate or filter anything in `src/textExtraction.ts` (every
   per-field confidence there is a fixed constant), but it's now a value worth trusting
   if you build something that wants one.
+- **Dates with zero separators, and a metadata-vs-flight-date distinction, are now
+  handled** (fixed in 0.7.0, from a real Philippine Airlines e-ticket PDF: barcode
+  scanning worked, but `returnDate` was missing even though the date was clearly on the
+  page). Two compounding issues: (1) this airline prints dates like `01Jun2026` with no
+  separator at all between month and year — `findFreeTextDateMatch`'s day-month-year
+  pattern now accepts that (`monthDayYear`'s separator requirement is unchanged, since no
+  real report has demonstrated that gap yet); (2) the same e-ticket page also has an
+  issuance date and a fare-validity date alongside the two real flight dates — four
+  unique dates, which used to trip the "3+ unlabeled dates is too ambiguous" rule and
+  threw away the real return date along with the noise. The unlabeled-date fallback now
+  excludes a date match that has a colon earlier in the same line (a general signal of
+  "Label: date" metadata, not the bare flight-date table cells) instead of bailing out
+  entirely. See the comment above `datesInOrder` in `src/textExtraction.ts`.
 - **Multi-leg BCBP barcodes only yield their first leg.** BCBP encodes additional legs
   (e.g. a connecting flight) via variable-length conditional data this v1 parser doesn't
   walk — see the comment in `src/bcbp.ts`. A round trip is virtually always two separate

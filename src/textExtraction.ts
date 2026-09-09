@@ -1,5 +1,5 @@
 import { lookupAirport } from "./airportLookup.js";
-import { parseFreeTextDate } from "./dateParsing.js";
+import { findFreeTextDateMatch, parseFreeTextDate } from "./dateParsing.js";
 import type { RecognizedTextLine, TicketField, TicketFields } from "./types.js";
 
 /**
@@ -98,14 +98,29 @@ export function extractFieldsFromOcrLines(lines: RecognizedTextLine[], reference
   // sidesteps that: the outbound leg is listed before the return leg on essentially
   // every real boarding pass/itinerary/OTA confirmation, so position is the more
   // reliable signal here than comparing two independently-guessed years.
+  //
+  // Skips a match with a colon earlier in the same line: a real e-ticket receipt (a
+  // real Philippine Airlines one) carried an issuance date and a fare-validity date on
+  // the same page as the two flight dates — four unique dates total, which used to make
+  // this whole fallback bail out ("too ambiguous"), silently losing the return date
+  // along with it. Both of those extra dates were "Label: date" formatted ("Date:
+  // 08May2026", "NVA (3): 31Jul2026") — a colon before the date is a strong, general
+  // signal of exactly that kind of metadata, without needing to know anything
+  // airline-specific. This does NOT require the date to be the *entire* line: the same
+  // report's actual flight-date lines were "Thu 10 Apr· 05:55 - Thu 10 Apr· 08:15"
+  // style (weekday + date + times, no colon before the date itself) on a different real
+  // report, which needs the date found as a substring, not as the whole line.
   if (!departureDate) {
     const datesInOrder: string[] = [];
     const seenDates = new Set<string>();
     for (const l of lines) {
-      const d = parseFreeTextDate(l.text, referenceDate);
-      if (d && !seenDates.has(d)) {
-        seenDates.add(d);
-        datesInOrder.push(d);
+      const match = findFreeTextDateMatch(l.text, referenceDate);
+      if (!match) continue;
+      // match.index is relative to the trimmed text, not the raw line — trim the same way before slicing.
+      if (l.text.trim().slice(0, match.index).includes(":")) continue;
+      if (!seenDates.has(match.value)) {
+        seenDates.add(match.value);
+        datesInOrder.push(match.value);
       }
     }
     if (datesInOrder.length === 1) {
