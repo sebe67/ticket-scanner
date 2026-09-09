@@ -14,31 +14,51 @@ function isValidCalendarDate(y: number, m: number, d: number): boolean {
 }
 
 /**
- * BCBP encodes a flight date as a 3-digit day-of-year (1-366) with no year at all — the
- * format simply doesn't carry one. The standard way real-world BCBP validators recover a
- * year is to pick whichever of {referenceYear-1, referenceYear, referenceYear+1} places
- * that day-of-year closest to "now": a boarding pass is scanned within about a year of
- * the flight, either shortly before travel or as a kept souvenir shortly after, never
- * across a multi-year gap.
+ * Shared year-inference: given a way to build a candidate date for an arbitrary year,
+ * tries {referenceYear-1, referenceYear, referenceYear+1} and keeps whichever candidate
+ * lands closest to referenceDate. Used for anything that's missing a year entirely (a
+ * BCBP day-of-year, or a free-text "17 SEP" with no year printed) — the shared
+ * assumption is that a ticket is scanned within about a year of the flight, either
+ * shortly before travel or as a kept souvenir shortly after, never across a
+ * multi-year gap.
  */
-export function resolveBcbpJulianDate(dayOfYear: number, referenceDate: Date = new Date()): string | null {
-  if (!Number.isInteger(dayOfYear) || dayOfYear < 1 || dayOfYear > 366) return null;
-
+function nearestValidYear(referenceDate: Date, buildCandidate: (year: number) => Date | null): Date | null {
   const refYear = referenceDate.getUTCFullYear();
   let best: { date: Date; diffMs: number } | null = null;
 
   for (const year of [refYear - 1, refYear, refYear + 1]) {
-    const jan1 = Date.UTC(year, 0, 1);
-    const candidate = new Date(jan1 + (dayOfYear - 1) * 86400000);
-    // day-of-year 366 only exists for leap years; reject it landing in January of the next year.
-    if (candidate.getUTCFullYear() !== year) continue;
-
+    const candidate = buildCandidate(year);
+    if (!candidate) continue;
     const diffMs = Math.abs(candidate.getTime() - referenceDate.getTime());
     if (!best || diffMs < best.diffMs) best = { date: candidate, diffMs };
   }
 
-  if (!best) return null;
-  return toIsoDate(best.date.getUTCFullYear(), best.date.getUTCMonth() + 1, best.date.getUTCDate());
+  return best?.date ?? null;
+}
+
+/**
+ * BCBP encodes a flight date as a 3-digit day-of-year (1-366) with no year at all — the
+ * format simply doesn't carry one. See `nearestValidYear` for how the year is recovered.
+ */
+export function resolveBcbpJulianDate(dayOfYear: number, referenceDate: Date = new Date()): string | null {
+  if (!Number.isInteger(dayOfYear) || dayOfYear < 1 || dayOfYear > 366) return null;
+
+  const best = nearestValidYear(referenceDate, (year) => {
+    const jan1 = Date.UTC(year, 0, 1);
+    const candidate = new Date(jan1 + (dayOfYear - 1) * 86400000);
+    // day-of-year 366 only exists for leap years; reject it landing in January of the next year.
+    return candidate.getUTCFullYear() === year ? candidate : null;
+  });
+
+  return best ? toIsoDate(best.getUTCFullYear(), best.getUTCMonth() + 1, best.getUTCDate()) : null;
+}
+
+/** Same year-inference as resolveBcbpJulianDate, for a free-text day+month with no year printed at all (e.g. a boarding pass showing "17 SEP" with no year). */
+function resolveMonthDayWithInferredYear(month: number, day: number, referenceDate: Date): string | null {
+  const best = nearestValidYear(referenceDate, (year) =>
+    isValidCalendarDate(year, month, day) ? new Date(Date.UTC(year, month - 1, day)) : null
+  );
+  return best ? toIsoDate(best.getUTCFullYear(), best.getUTCMonth() + 1, best.getUTCDate()) : null;
 }
 
 const MONTHS: Record<string, number> = {
@@ -68,9 +88,12 @@ function fullYear(y: number): number {
  * e-tickets/itineraries: "12 SEP 2026", "SEP 12, 2026", "2026-09-12", "09/12/2026" and
  * "12/09/2026" (the numeric-slash case is inherently ambiguous between
  * month-first/day-first; both orderings are tried and only kept if exactly one parses to
- * a valid calendar date, otherwise it's rejected as ambiguous rather than guessed).
+ * a valid calendar date, otherwise it's rejected as ambiguous rather than guessed) — and,
+ * failing all of those, a bare day+month with no year at all ("17SEP", "SEP 17"), common
+ * on boarding-pass mockups/templates that omit the year, with the year inferred the same
+ * way `resolveBcbpJulianDate` infers one for a BCBP barcode's yearless day-of-year.
  */
-export function parseFreeTextDate(text: string): string | null {
+export function parseFreeTextDate(text: string, referenceDate: Date = new Date()): string | null {
   const t = text.trim();
 
   const iso = t.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
@@ -109,6 +132,26 @@ export function parseFreeTextDate(text: string): string | null {
     if (asMonthFirst && !asDayFirst) return toIsoDate(year, a, b);
     if (asDayFirst && !asMonthFirst) return toIsoDate(year, b, a);
     return null;
+  }
+
+  const dayMonthNoYear = t.match(/\b(\d{1,2})\s*([A-Za-z]{3,9})\b/);
+  if (dayMonthNoYear) {
+    const day = Number(dayMonthNoYear[1]);
+    const month = MONTHS[dayMonthNoYear[2].toLowerCase()];
+    if (month) {
+      const resolved = resolveMonthDayWithInferredYear(month, day, referenceDate);
+      if (resolved) return resolved;
+    }
+  }
+
+  const monthDayNoYear = t.match(/\b([A-Za-z]{3,9})\s*(\d{1,2})\b/);
+  if (monthDayNoYear) {
+    const month = MONTHS[monthDayNoYear[1].toLowerCase()];
+    const day = Number(monthDayNoYear[2]);
+    if (month) {
+      const resolved = resolveMonthDayWithInferredYear(month, day, referenceDate);
+      if (resolved) return resolved;
+    }
   }
 
   return null;

@@ -5,6 +5,21 @@ every change that touches runtime behavior, so a bug report against a running in
 can always be tied back to the exact code that produced it (`ENGINE_VERSION` is exported
 and appears in every `TicketScanResult.provenance`, and in the demo's version badge).
 
+## 0.4.0
+
+- Fixed `parseFreeTextDate` rejecting a date with no year at all (e.g. "17SEP") —
+  common on boarding-pass mockups/templates that omit the year. It now infers the
+  nearest year to "now" the same way `resolveBcbpJulianDate` already had to for BCBP's
+  yearless day-of-year. `extractFieldsFromOcrLines`/`findDateNear` now take an optional
+  `referenceDate` so this stays deterministic and fixture-testable.
+- Added the first real regression fixture (`fixtures/2026-09-09-yearless-date-not-extracted.fixture.json`),
+  captured from an actual first-run report.
+- **Known gap surfaced by the same report, not yet fixed:** a ticket printing city names
+  ("MOSCOW", "NEW YORK") instead of IATA codes gets no route at all — the extractor only
+  recognizes 3-letter codes. Left unresolved rather than guessed (no value beats a wrong
+  one); real airline-issued boarding passes almost always print IATA codes, so this may
+  matter less in practice than it did for the generic mockup that surfaced it.
+
 ## 0.3.1
 
 - Fixed the demo's `<script>` tag: it referenced its bundle by a relative path

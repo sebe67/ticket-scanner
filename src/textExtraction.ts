@@ -20,9 +20,9 @@ const RETURN_LABEL = /\b(return(?:ing)?|inbound|arriving back)\b/i;
 const ADULTS_PATTERN = /\b(\d+)\s*(?:adults?|adt)\b/i;
 const CHILDREN_PATTERN = /\b(\d+)\s*(?:child(?:ren)?|chd)\b/i;
 
-function findDateNear(lines: RecognizedTextLine[], labelIndex: number): string | null {
+function findDateNear(lines: RecognizedTextLine[], labelIndex: number, referenceDate: Date): string | null {
   for (let i = labelIndex; i < Math.min(lines.length, labelIndex + 3); i++) {
-    const date = parseFreeTextDate(lines[i].text);
+    const date = parseFreeTextDate(lines[i].text, referenceDate);
     if (date) return date;
   }
   return null;
@@ -37,7 +37,7 @@ export interface OcrExtractedFields {
   children?: TicketField<number>;
 }
 
-export function extractFieldsFromOcrLines(lines: RecognizedTextLine[]): OcrExtractedFields {
+export function extractFieldsFromOcrLines(lines: RecognizedTextLine[], referenceDate: Date = new Date()): OcrExtractedFields {
   const result: OcrExtractedFields = {};
 
   // Route: first line whose two candidate 3-letter codes are both recognized airports.
@@ -57,8 +57,8 @@ export function extractFieldsFromOcrLines(lines: RecognizedTextLine[]): OcrExtra
   let departureDate: string | null = null;
   let returnDate: string | null = null;
   for (let i = 0; i < lines.length; i++) {
-    if (!departureDate && DEPARTURE_LABEL.test(lines[i].text)) departureDate = findDateNear(lines, i);
-    if (!returnDate && RETURN_LABEL.test(lines[i].text)) returnDate = findDateNear(lines, i);
+    if (!departureDate && DEPARTURE_LABEL.test(lines[i].text)) departureDate = findDateNear(lines, i, referenceDate);
+    if (!returnDate && RETURN_LABEL.test(lines[i].text)) returnDate = findDateNear(lines, i, referenceDate);
   }
 
   if (departureDate) {
@@ -73,7 +73,7 @@ export function extractFieldsFromOcrLines(lines: RecognizedTextLine[]): OcrExtra
   // order (earliest = departure, latest = return) at reduced confidence. Three or more
   // unlabeled dates is too ambiguous to guess from — left unresolved.
   if (!departureDate) {
-    const uniqueDates = Array.from(new Set(lines.map((l) => parseFreeTextDate(l.text)).filter((d): d is string => d !== null))).sort();
+    const uniqueDates = Array.from(new Set(lines.map((l) => parseFreeTextDate(l.text, referenceDate)).filter((d): d is string => d !== null))).sort();
     if (uniqueDates.length === 1) {
       result.departureDate = { value: uniqueDates[0], confidence: 0.6, source: "ocr" };
     } else if (uniqueDates.length === 2) {

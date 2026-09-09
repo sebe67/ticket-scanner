@@ -9,8 +9,8 @@ actually break this pipeline are, almost by definition, ones nobody imagined in 
 test` — this is the thing that catches a fix for one format silently breaking a
 different one, before a user does.
 
-The directory starts empty (aside from this README). That's expected until the first
-real ticket gets scanned and something comes back wrong or missing.
+The directory starts empty (aside from this README) and grows one real report at a
+time — see `2026-09-09-yearless-date-not-extracted.fixture.json` for the first one.
 
 ## When to add one
 
@@ -73,6 +73,12 @@ Whenever a real ticket produces a wrong or missing field:
   }
 }
 ```
+
+Add `referenceDate` (same meaning as in the `"barcode"` example below) whenever the
+fixture asserts `departureDate`/`returnDate` and the ticket's printed date has no year
+at all (e.g. "17SEP") — `parseFreeTextDate` infers the year from "now" in that case,
+same as `resolveBcbpJulianDate` does for BCBP, so the fixture needs a pinned instant to
+stay deterministic. Not needed when the date already includes an explicit year.
 
 ### `"barcode"` — a decoded BCBP payload resolved to the wrong field
 

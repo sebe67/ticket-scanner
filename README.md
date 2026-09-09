@@ -160,21 +160,29 @@ unversioned layout with a `ppocr_keys_v1.txt` file to the current `v1.1/` layout
 
 ## Known limitations / next steps
 
-- **The barcode subsystem has been verified end-to-end in a real browser** (`npm run
-  smoke`, see above): encode -> decode -> BCBP parse -> country/date resolution, all
-  passing through the actual `zxing-wasm` WASM runtime. **The OCR fallback path has
-  not** — it needs a real network fetch of the ~20MB model weights, which the sandboxed
-  environment this was developed in couldn't complete (its headless Chromium can't
-  finish an HTTPS request to the model bucket at all, through its proxy or otherwise —
-  confirmed and not something worth routing around, per that environment's own
-  documented policy; a real user's browser under normal internet access shouldn't hit
-  this). Also unverified: the OCR path's actual extraction accuracy against a real
-  boarding-pass photo or e-ticket PDF — the pure-logic pieces (BCBP parsing, date
-  parsing, airport lookup, OCR-text field extraction) are unit-tested, and the actual
-  `det_model.onnx`/`rec_model.onnx`/`ppocrv5_dict.txt` triple this defaults to has been
-  loaded for real and its tensor shapes confirmed (see "Verifying a model/dict pair"
-  above), but no real ticket has been run through the full pipeline yet. Run `npm run
-  demo` against real tickets to close this gap.
+- **Both the barcode subsystem and the OCR fallback have now run for real.** The barcode
+  subsystem is verified end-to-end in a real browser via `npm run smoke` (encode ->
+  decode -> BCBP parse -> country/date resolution, through the actual `zxing-wasm` WASM
+  runtime). The OCR fallback couldn't be exercised the same way in the sandboxed
+  environment this was originally developed in (its headless Chromium couldn't complete
+  an HTTPS request to the model bucket at all — confirmed, and not something worth
+  routing around per that environment's own documented policy), but a real user's `npm
+  run demo` run against a real boarding-pass mockup did complete the full pipeline
+  (model fetch, WASM inference, OCR-text extraction) with no crash — see the next two
+  bullets for what that run actually surfaced.
+- **A ticket printing city names instead of IATA codes gets no route at all.** The first
+  real test (a generic boarding-pass mockup showing "MOSCOW"/"NEW YORK") printed city
+  names, not 3-letter codes — `src/textExtraction.ts`'s route matcher only recognizes
+  codes, so it correctly found nothing rather than guessing a country from an
+  unfamiliar city name (locale spelling and same-named cities in different countries
+  make that unreliable, per the original lessons-learned doc). Left as a known gap
+  rather than fixed, since real airline-issued boarding passes almost always print IATA
+  codes (for gate-agent/system use) — worth adding a city-name lookup only if real
+  tickets from your actual users turn out to omit codes too.
+- **A ticket date with no year at all is now handled** (fixed in 0.4.0, from that same
+  real test — see `CHANGELOG.md`): `parseFreeTextDate` used to require an explicit year
+  and silently returned nothing for e.g. "17SEP"; it now infers the nearest year to "now"
+  the same way `resolveBcbpJulianDate` already did for BCBP's yearless day-of-year.
 - **Airport-to-country table is a curated starter set** (`src/airportLookup.ts`),
   covering Philippine airports plus the international destinations most commonly booked
   out of the Philippines — not a complete IATA dataset. An unknown code resolves to

@@ -17,6 +17,14 @@ export interface OcrLinesFixture {
   reportedEngineVersion?: string;
   /** Exactly the `RecognizedTextLine[]` for one page, captured via `scanTicket(input, { includeDebugInfo: true })`. */
   lines: RecognizedTextLine[];
+  /**
+   * ISO instant the ticket was actually scanned/reported at. Required whenever
+   * `expected.departureDate`/`returnDate` is set and the ticket's printed date has no
+   * year (see `resolveMonthDayWithInferredYear` in `src/dateParsing.ts`) — pinning this
+   * instant is what makes the fixture reproduce the same answer no matter when the test
+   * suite runs. Not needed when the ticket's date already includes an explicit year.
+   */
+  referenceDate?: string;
   /** Only the fields this fixture is actually asserting — omit any field the report didn't concern. */
   expected: {
     originAirport?: string;

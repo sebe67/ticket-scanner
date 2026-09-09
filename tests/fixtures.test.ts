@@ -32,8 +32,12 @@ test("fixtures/ is wired up and readable (fixtures are added as real bug reports
 for (const { file, fixture } of fixtures) {
   test(`fixture ${file}: ${fixture.description}`, () => {
     if (fixture.kind === "ocrLines") {
-      const result = extractFieldsFromOcrLines(fixture.lines);
       const { expected } = fixture;
+      if ((expected.departureDate !== undefined || expected.returnDate !== undefined) && !fixture.referenceDate) {
+        throw new Error("a departureDate/returnDate assertion needs referenceDate pinned, or it can't be reproduced deterministically once the ticket's date lacks an explicit year");
+      }
+      const referenceDate = fixture.referenceDate ? new Date(fixture.referenceDate) : new Date();
+      const result = extractFieldsFromOcrLines(fixture.lines, referenceDate);
 
       if (expected.originAirport !== undefined) assert.equal(result.originAirport, expected.originAirport);
       if (expected.destinationAirport !== undefined) assert.equal(result.destinationAirport, expected.destinationAirport);

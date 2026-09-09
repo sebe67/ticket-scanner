@@ -48,3 +48,25 @@ test("parseFreeTextDate rejects a genuinely ambiguous slash date rather than gue
 test("parseFreeTextDate returns null when no date is present", () => {
   assert.equal(parseFreeTextDate("BOARDING PASS"), null);
 });
+
+test("parseFreeTextDate infers the year for a yearless 'DDMMM' date (real boarding-pass mockup format)", () => {
+  const reference = new Date(Date.UTC(2026, 8, 9)); // Sep 9 2026
+  assert.equal(parseFreeTextDate("17SEP", reference), "2026-09-17");
+  assert.equal(parseFreeTextDate("17 SEP", reference), "2026-09-17");
+});
+
+test("parseFreeTextDate infers the year for a yearless 'MMM DD' date", () => {
+  const reference = new Date(Date.UTC(2026, 8, 9)); // Sep 9 2026
+  assert.equal(parseFreeTextDate("SEP 17", reference), "2026-09-17");
+});
+
+test("parseFreeTextDate's yearless inference rolls to the closest year, same as resolveBcbpJulianDate", () => {
+  const reference = new Date(Date.UTC(2026, 11, 28)); // Dec 28 2026
+  assert.equal(parseFreeTextDate("5 JAN", reference), "2027-01-05");
+});
+
+test("parseFreeTextDate does not mistake a short non-month code (e.g. a seat/gate label) for a yearless date", () => {
+  assert.equal(parseFreeTextDate("24A"), null);
+  assert.equal(parseFreeTextDate("SU 6329"), null);
+  assert.equal(parseFreeTextDate("B05"), null);
+});
