@@ -104,6 +104,23 @@ it with `scanTicket(input, { includeDebugInfo: true })` (see `fixtures/README.md
 the full workflow) and add a fixture; `npm test` runs every fixture on every change, so
 a fix for one report can't silently break a previously-fixed one.
 
+## Demo and smoke test
+
+`npm run demo` builds the library and starts a local server at `http://localhost:8787/`
+with a page that lets you upload a real ticket photo/screenshot/PDF and see the
+extracted JSON — run it on any machine with normal internet access (it needs to reach
+the OCR model bucket; see Setup). It serves onnxruntime-web/zxing-wasm/pdfjs-dist's
+wasm/worker assets straight out of `node_modules`, so there's no CDN dependency.
+
+`npm run smoke` is an automated check, not a manual demo: it drives real headless
+Chromium (via Playwright) through an actual round trip of the barcode subsystem —
+encodes a test BCBP payload to a genuine PDF417 image, decodes it back, parses it, and
+resolves country/date — exercising the real `zxing-wasm` WASM runtime rather than just
+the pure-logic unit tests in `tests/`. It deliberately doesn't exercise the OCR fallback
+path, since that needs a real network fetch of the model weights; run `npm run demo`
+with a real ticket for that instead. Run `npm run smoke` after any change that touches
+`src/barcode.ts`, `src/bcbp.ts`, `src/dateParsing.ts`, or `src/airportLookup.ts`.
+
 ## Setup
 
 1. Host the three OCR model assets (`det_model.onnx`, `rec_model.onnx`, and the keys
@@ -143,18 +160,21 @@ unversioned layout with a `ppocr_keys_v1.txt` file to the current `v1.1/` layout
 
 ## Known limitations / next steps
 
-- **Untested end-to-end in a real browser**, though less untested than it sounds: built
-  and typechecked against the real `onnxruntime-web`, `zxing-wasm`, and `pdfjs-dist`
-  types (their actual `node_modules` APIs were inspected while writing this, not
-  guessed from memory); the pure-logic pieces (BCBP parsing, date parsing, airport
-  lookup, OCR-text field extraction) are unit-tested; and the actual `det_model.onnx`/
-  `rec_model.onnx`/`ppocrv5_dict.txt` triple this defaults to has been loaded for real
-  (via `onnxruntime-web` under Node) and its input/output tensor shapes confirmed —
-  see "Verifying a model/dict pair" above. What's still unverified is the full
-  pipeline against a real boarding-pass photo or e-ticket PDF in an actual browser (no
-  browser/model access in the environment this was written in) — no real ticket has
-  been tried yet since none were available when this was last worked on. Test against
-  a handful of real tickets before shipping.
+- **The barcode subsystem has been verified end-to-end in a real browser** (`npm run
+  smoke`, see above): encode -> decode -> BCBP parse -> country/date resolution, all
+  passing through the actual `zxing-wasm` WASM runtime. **The OCR fallback path has
+  not** — it needs a real network fetch of the ~20MB model weights, which the sandboxed
+  environment this was developed in couldn't complete (its headless Chromium can't
+  finish an HTTPS request to the model bucket at all, through its proxy or otherwise —
+  confirmed and not something worth routing around, per that environment's own
+  documented policy; a real user's browser under normal internet access shouldn't hit
+  this). Also unverified: the OCR path's actual extraction accuracy against a real
+  boarding-pass photo or e-ticket PDF — the pure-logic pieces (BCBP parsing, date
+  parsing, airport lookup, OCR-text field extraction) are unit-tested, and the actual
+  `det_model.onnx`/`rec_model.onnx`/`ppocrv5_dict.txt` triple this defaults to has been
+  loaded for real and its tensor shapes confirmed (see "Verifying a model/dict pair"
+  above), but no real ticket has been run through the full pipeline yet. Run `npm run
+  demo` against real tickets to close this gap.
 - **Airport-to-country table is a curated starter set** (`src/airportLookup.ts`),
   covering Philippine airports plus the international destinations most commonly booked
   out of the Philippines — not a complete IATA dataset. An unknown code resolves to

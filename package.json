@@ -1,6 +1,6 @@
 {
   "name": "ticket-scanner",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Client-side (browser) plane-ticket scanner: decodes IATA BCBP boarding-pass barcodes and/or runs on-device OCR (PaddleOCR PP-OCRv5 via onnxruntime-web) to extract origin/destination country, travel dates, and passenger counts as JSON. No image data leaves the device.",
   "type": "module",
@@ -8,7 +8,10 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "tsc -p tsconfig.test.json && node --test dist-test/tests/*.test.js"
+    "test": "tsc -p tsconfig.test.json && node --test dist-test/tests/*.test.js",
+    "demo:build": "node scripts/build-demo.mjs",
+    "demo": "npm run build && node scripts/build-demo.mjs --serve",
+    "smoke": "npm run build && node scripts/smoke-test.mjs"
   },
   "dependencies": {
     "onnxruntime-web": "1.29.0",
@@ -16,6 +19,8 @@
     "zxing-wasm": "1.3.5"
   },
   "devDependencies": {
+    "esbuild": "^0.24.0",
+    "playwright": "^1.56.1",
     "typescript": "^5.5.4"
   }
 }

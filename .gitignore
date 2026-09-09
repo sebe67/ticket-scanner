@@ -1,4 +1,7 @@
 node_modules/
 dist/
 dist-test/
+demo/dist/
+scripts/smoke-test-bundle.js
+scripts/smoke-test-bundle.js.map
 *.log
