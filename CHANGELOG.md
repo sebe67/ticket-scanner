@@ -5,6 +5,36 @@ every change that touches runtime behavior, so a bug report against a running in
 can always be tied back to the exact code that produced it (`ENGINE_VERSION` is exported
 and appears in every `TicketScanResult.provenance`, and in the demo's version badge).
 
+## 0.5.0
+
+Three fixes from a real Booking.com flight-confirmation screenshot report (JNB<->CPT
+round trip, zero fields extracted):
+
+- **Route matching now handles "City (CODE) to City (CODE)"** — a very common OTA
+  phrasing (Booking.com, and likely others) where the two IATA codes aren't adjacent to
+  each other (a city name sits between them), so the existing "CODE - CODE"/"CODE to
+  CODE" pattern couldn't see them. Added a second path that looks for exactly two
+  parenthesized 3-letter codes anywhere in a line.
+- **Added South Africa's three major airports** (`JNB`, `CPT`, `DUR`) to
+  `airportLookup.ts` — the starter table was Philippines-centric and had no African
+  airports at all, so even with the route pattern fixed, the codes wouldn't have
+  resolved to a country.
+- **The two-unlabeled-dates fallback now uses document order, not resolved-value
+  order**, to decide which date is departure vs. return. Each date's year is inferred
+  independently (see 0.4.0's yearless-date fix) — usually fine, but two dates that are
+  actually a year apart in real time (e.g. Dec 31 and Jan 2, a New Year's-spanning trip)
+  can, in a narrow scanning-time window, both round to the *same* calendar year, making
+  the second-listed date resolve to an earlier value than the first. Sorting by value
+  would then swap departure and return; document order doesn't, since the outbound leg
+  is listed before the return leg on essentially every real itinerary/OTA confirmation
+  (confirmed again by this exact report). See the comment in `src/textExtraction.ts` and
+  the regression test using the narrow real window this can occur in
+  (`tests/textExtraction.test.ts`).
+
+Adds a second real regression fixture
+(`fixtures/2026-09-09-booking-confirmation-parenthesized-codes.fixture.json`) covering
+all three fixes together, from the exact reported OCR lines.
+
 ## 0.4.0
 
 - Fixed `parseFreeTextDate` rejecting a date with no year at all (e.g. "17SEP") —

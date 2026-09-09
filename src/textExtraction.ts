@@ -14,6 +14,8 @@ import type { RecognizedTextLine, TicketField, TicketFields } from "./types.js";
  */
 
 const ROUTE_PATTERN = /\b([A-Z]{3})\b\s*(?:-|–|—|>|→|➔|\/|\bto\b)\s*\b([A-Z]{3})\b/i;
+/** OTA-style "City (CODE) to City (CODE)" — the two codes aren't adjacent to each other (a city name sits between them), so ROUTE_PATTERN alone can't see them; this looks for exactly two parenthesized codes anywhere in the line instead. */
+const PAREN_CODE_PATTERN = /\(([A-Z]{3})\)/g;
 
 const DEPARTURE_LABEL = /\b(depart(?:ure|ing)?|outbound|onward)\b/i;
 const RETURN_LABEL = /\b(return(?:ing)?|inbound|arriving back)\b/i;
@@ -42,14 +44,26 @@ export function extractFieldsFromOcrLines(lines: RecognizedTextLine[], reference
 
   // Route: first line whose two candidate 3-letter codes are both recognized airports.
   for (const line of lines) {
-    const match = line.text.match(ROUTE_PATTERN);
-    if (!match) continue;
-    const from = lookupAirport(match[1]);
-    const to = lookupAirport(match[2]);
-    if (from && to) {
-      result.originAirport = match[1].toUpperCase();
-      result.destinationAirport = match[2].toUpperCase();
-      break;
+    const directMatch = line.text.match(ROUTE_PATTERN);
+    if (directMatch) {
+      const from = lookupAirport(directMatch[1]);
+      const to = lookupAirport(directMatch[2]);
+      if (from && to) {
+        result.originAirport = directMatch[1].toUpperCase();
+        result.destinationAirport = directMatch[2].toUpperCase();
+        break;
+      }
+    }
+
+    const parenMatches = [...line.text.matchAll(PAREN_CODE_PATTERN)];
+    if (parenMatches.length === 2) {
+      const from = lookupAirport(parenMatches[0][1]);
+      const to = lookupAirport(parenMatches[1][1]);
+      if (from && to) {
+        result.originAirport = parenMatches[0][1].toUpperCase();
+        result.destinationAirport = parenMatches[1][1].toUpperCase();
+        break;
+      }
     }
   }
 
@@ -69,16 +83,36 @@ export function extractFieldsFromOcrLines(lines: RecognizedTextLine[], reference
   }
 
   // Fallback when neither date carried an explicit label: if the document contains
-  // exactly one or two distinct calendar-valid dates overall, assume chronological
-  // order (earliest = departure, latest = return) at reduced confidence. Three or more
-  // unlabeled dates is too ambiguous to guess from — left unresolved.
+  // exactly one or two distinct calendar-valid dates overall, assume the first one to
+  // appear in reading order is the departure and the second the return, at reduced
+  // confidence. Three or more unlabeled dates is too ambiguous to guess from — left
+  // unresolved.
+  //
+  // Deliberately document order, not sorted-by-resolved-value: each date's year is
+  // inferred independently (see parseFreeTextDate/resolveMonthDayWithInferredYear),
+  // which is usually fine but can genuinely disagree with itself for a trip that spans
+  // New Year's when scanned well before departure — two dates a year apart in
+  // day-of-year terms can each round to whichever calendar year is nearest to "now"
+  // independently, occasionally producing a resolved pair where the intended-later date
+  // rounds to an earlier calendar year than the intended-earlier one. Document order
+  // sidesteps that: the outbound leg is listed before the return leg on essentially
+  // every real boarding pass/itinerary/OTA confirmation, so position is the more
+  // reliable signal here than comparing two independently-guessed years.
   if (!departureDate) {
-    const uniqueDates = Array.from(new Set(lines.map((l) => parseFreeTextDate(l.text, referenceDate)).filter((d): d is string => d !== null))).sort();
-    if (uniqueDates.length === 1) {
-      result.departureDate = { value: uniqueDates[0], confidence: 0.6, source: "ocr" };
-    } else if (uniqueDates.length === 2) {
-      result.departureDate = { value: uniqueDates[0], confidence: 0.55, source: "ocr" };
-      if (!returnDate) result.returnDate = { value: uniqueDates[1], confidence: 0.55, source: "ocr" };
+    const datesInOrder: string[] = [];
+    const seenDates = new Set<string>();
+    for (const l of lines) {
+      const d = parseFreeTextDate(l.text, referenceDate);
+      if (d && !seenDates.has(d)) {
+        seenDates.add(d);
+        datesInOrder.push(d);
+      }
+    }
+    if (datesInOrder.length === 1) {
+      result.departureDate = { value: datesInOrder[0], confidence: 0.6, source: "ocr" };
+    } else if (datesInOrder.length === 2) {
+      result.departureDate = { value: datesInOrder[0], confidence: 0.55, source: "ocr" };
+      if (!returnDate) result.returnDate = { value: datesInOrder[1], confidence: 0.55, source: "ocr" };
     }
   }
 

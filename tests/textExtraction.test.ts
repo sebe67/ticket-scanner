@@ -20,6 +20,20 @@ test("ignores a route-shaped line whose codes aren't real airports", () => {
   assert.equal(result.destinationAirport, undefined);
 });
 
+test("extracts a route from OTA-style 'City (CODE) to City (CODE)' phrasing", () => {
+  // Real report: the two codes aren't adjacent (a city name sits between them), so the
+  // direct "CODE - CODE" pattern alone can't see this — needs the parenthesized-code path.
+  const result = extractFieldsFromOcrLines([line("Johannesburg (JNB) to Cape Town (CPT)")]);
+  assert.equal(result.originAirport, "JNB");
+  assert.equal(result.destinationAirport, "CPT");
+});
+
+test("does not treat a line with more than two parenthesized codes as a route", () => {
+  const result = extractFieldsFromOcrLines([line("Connects via (JNB), (CPT), and (DUR)")]);
+  assert.equal(result.originAirport, undefined);
+  assert.equal(result.destinationAirport, undefined);
+});
+
 test("extracts a labeled departure date from the following line", () => {
   const result = extractFieldsFromOcrLines([line("Departure"), line("12 SEP 2026")]);
   assert.equal(result.departureDate?.value, "2026-09-12");
@@ -35,11 +49,29 @@ test("extracts labeled departure and return dates independently", () => {
   assert.equal(result.returnDate?.value, "2026-09-20");
 });
 
-test("falls back to chronological order for exactly two unlabeled dates, at lower confidence", () => {
+test("falls back to document order (first seen = departure) for exactly two unlabeled dates, at lower confidence", () => {
+  // Deliberately out of chronological order — document order should still win, per the
+  // real-world convention that the outbound leg is listed before the return leg (and
+  // because comparing independently-year-inferred dates can disagree with itself across
+  // a New Year's boundary; see the comment in textExtraction.ts).
   const result = extractFieldsFromOcrLines([line("2026-09-20"), line("2026-09-12")]);
-  assert.equal(result.departureDate?.value, "2026-09-12");
-  assert.equal(result.returnDate?.value, "2026-09-20");
+  assert.equal(result.departureDate?.value, "2026-09-20");
+  assert.equal(result.returnDate?.value, "2026-09-12");
   assert.ok(result.departureDate!.confidence < 0.85);
+});
+
+test("keeps document order (not resolved-value order) for two unlabeled yearless dates spanning New Year's", () => {
+  // A real risk with inferring each date's year independently: scanned from just the
+  // right (narrow) point in the middle of the year, "31 DEC" and "2 JAN" can both round
+  // to the *same* calendar year (each is closer to that year than to neighboring ones),
+  // which makes Jan 2 chronologically *earlier* than Dec 31 within that single resolved
+  // year — even though Dec 31 was clearly listed first (the outbound leg) and Jan 2
+  // second (the return). Sorting by resolved value would then swap them; document order
+  // doesn't, because it never compares the two resolved values against each other.
+  const reference = new Date("2026-07-02T12:00:00Z");
+  const result = extractFieldsFromOcrLines([line("31 DEC"), line("2 JAN")], reference);
+  assert.equal(result.departureDate?.value, "2026-12-31");
+  assert.equal(result.returnDate?.value, "2026-01-02");
 });
 
 test("does not guess when three or more unlabeled dates are present", () => {

@@ -179,24 +179,54 @@ unversioned layout with a `ppocr_keys_v1.txt` file to the current `v1.1/` layout
   run demo` run against a real boarding-pass mockup did complete the full pipeline
   (model fetch, WASM inference, OCR-text extraction) with no crash — see the next two
   bullets for what that run actually surfaced.
-- **A ticket printing city names instead of IATA codes gets no route at all.** The first
-  real test (a generic boarding-pass mockup showing "MOSCOW"/"NEW YORK") printed city
-  names, not 3-letter codes — `src/textExtraction.ts`'s route matcher only recognizes
-  codes, so it correctly found nothing rather than guessing a country from an
-  unfamiliar city name (locale spelling and same-named cities in different countries
-  make that unreliable, per the original lessons-learned doc). Left as a known gap
-  rather than fixed, since real airline-issued boarding passes almost always print IATA
-  codes (for gate-agent/system use) — worth adding a city-name lookup only if real
-  tickets from your actual users turn out to omit codes too.
-- **A ticket date with no year at all is now handled** (fixed in 0.4.0, from that same
-  real test — see `CHANGELOG.md`): `parseFreeTextDate` used to require an explicit year
+- **A ticket printing city names instead of IATA codes, with no codes anywhere, still
+  gets no route.** The first real test (a generic boarding-pass mockup showing
+  "MOSCOW"/"NEW YORK") printed only city names, nowhere on the document — no code to
+  find at all. Left as a known gap rather than fixed with a city-name lookup, since real
+  airline-issued boarding passes and real OTA confirmations (see the next two bullets)
+  do print IATA codes, just not always adjacent to each other.
+- **Route matching now also handles "City (CODE) to City (CODE)"** (fixed in 0.5.0, from
+  a real Booking.com confirmation screenshot): the two codes there aren't adjacent (a
+  city name sits between them), so the original "CODE - CODE"/"CODE to CODE" pattern
+  couldn't see them. `src/textExtraction.ts` now also looks for exactly two
+  parenthesized 3-letter codes anywhere in a line.
+- **A ticket date with no year at all is now handled** (fixed in 0.4.0, from a real
+  test — see `CHANGELOG.md`): `parseFreeTextDate` used to require an explicit year
   and silently returned nothing for e.g. "17SEP"; it now infers the nearest year to "now"
-  the same way `resolveBcbpJulianDate` already did for BCBP's yearless day-of-year.
+  the same way `resolveBcbpJulianDate` already did for BCBP's yearless day-of-year. Note
+  this inference is inherently approximate for a ticket scanned many months from its
+  travel date (it picks whichever candidate year is *nearest in time* to the scan, with
+  no notion of "this is probably a future booking vs. a kept souvenir") — accepted as a
+  known tradeoff, same as it already was for BCBP.
 - **Airport-to-country table is a curated starter set** (`src/airportLookup.ts`),
-  covering Philippine airports plus the international destinations most commonly booked
-  out of the Philippines — not a complete IATA dataset. An unknown code resolves to
-  `null` (no value beats a wrong one), but expect gaps on less-common routes; swap in a
-  maintained dataset (e.g. an OurAirports CSV import) once that matters.
+  originally covering only Philippine airports plus the international destinations most
+  commonly booked out of the Philippines — not a complete IATA dataset. Real testing
+  already found gaps beyond that original scope (South Africa was entirely absent until
+  0.5.0). An unknown code resolves to `null` (no value beats a wrong one), but expect
+  more gaps; swap in a maintained dataset (e.g. an OurAirports CSV import) once that
+  matters, rather than adding countries one real report at a time indefinitely.
+- **The two-unlabeled-dates fallback picks departure/return by document order, not by
+  which resolved date is chronologically earlier** (changed in 0.5.0) — deliberate, to
+  avoid a narrow but real failure mode where two independently-year-inferred dates that
+  are actually about a year apart (e.g. a New Year's-spanning trip) can round to the
+  same calendar year depending on scan timing, making the second-listed date resolve
+  "earlier" than the first. See the comment above `datesInOrder` in
+  `src/textExtraction.ts`.
+- **Per-line OCR confidence values are real but not a useful signal at this vocabulary
+  size.** `RecognizedTextLine.confidence` (visible in debug output) often comes out
+  extremely small (~0.0001) even for correctly-recognized, high-contrast printed text —
+  this is standard softmax-of-the-argmax-class math (`src/recognize.ts`), not a
+  double-softmax bug, but the PP-OCRv5 dictionary this defaults to has ~18,385 classes
+  (a large multilingual charset — CJK, Latin, symbols, emoji), and summing `exp()` over
+  that many classes in the denominator mathematically deflates the top class's
+  probability regardless of how "confident" the recognition actually is. This value
+  isn't currently used to gate or filter anything in `src/textExtraction.ts` (every
+  per-field confidence there is a fixed constant, not derived from OCR confidence), so
+  it hasn't caused a wrong result yet — but it also means it's not currently a
+  trustworthy per-line quality signal if you build something that wants one. Whether
+  there's *also* a calibration issue independent of the vocabulary-size effect (e.g. in
+  the input tensor normalization) hasn't been investigated — flagging honestly rather
+  than asserting it's "just vocabulary size, nothing more to check."
 - **Multi-leg BCBP barcodes only yield their first leg.** BCBP encodes additional legs
   (e.g. a connecting flight) via variable-length conditional data this v1 parser doesn't
   walk — see the comment in `src/bcbp.ts`. A round trip is virtually always two separate

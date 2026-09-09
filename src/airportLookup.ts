@@ -167,6 +167,11 @@ export const AIRPORT_COUNTRY_TABLE: Record<string, AirportInfo> = {
   ATH: { city: "Athens", country: "Greece" },
   LIS: { city: "Lisbon", country: "Portugal" },
   WAW: { city: "Warsaw", country: "Poland" },
+
+  // --- Africa (added from a real test report — South Africa was entirely absent) ---
+  JNB: { city: "Johannesburg (O.R. Tambo)", country: "South Africa" },
+  CPT: { city: "Cape Town", country: "South Africa" },
+  DUR: { city: "Durban (King Shaka)", country: "South Africa" },
 };
 
 /** Looks up an IATA airport code's city/country. Returns null for an unrecognized code — never a guess. */

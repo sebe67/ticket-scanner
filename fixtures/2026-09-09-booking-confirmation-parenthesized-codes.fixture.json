@@ -1,0 +1,38 @@
+{
+  "kind": "ocrLines",
+  "description": "A real Booking.com flight-booking-confirmation screenshot (JNB<->CPT round trip) came back with zero fields extracted. Two separate root causes, both fixed here: (1) the route was printed as \"Johannesburg (JNB) to Cape Town (CPT)\" - the two codes aren't adjacent to each other (a city name sits between them), so the direct \"CODE - CODE\"/\"CODE to CODE\" pattern couldn't see them; added a second route-matching path that looks for exactly two parenthesized 3-letter codes anywhere in the line. (2) JNB and CPT weren't in airportLookup.ts at all - the starter table was Philippines-centric and had no African airports; added South Africa's three major hubs. Also exercises the document-order date fallback fixed in the same change: neither leg is labeled \"departure\"/\"return\" here, so the fallback has to correctly treat the first-listed date (10 Apr, the JNB->CPT leg) as departure and the second (13 Apr, the CPT->JNB leg) as return, from real OCR text that also includes weekday names, mid-dots, and times on the same line as each date (e.g. \"Thu 10 Apr· 05:55 - Thu 10 Apr· 08:15\").",
+  "reportedEngineVersion": "ticket-scanner/bcbp+ppocrv5-mobile-onnxruntime-web@0.3.0",
+  "referenceDate": "2026-09-09T12:00:00Z",
+  "lines": [
+    { "text": "Booking.com", "confidence": 0.0001477633062697432, "boundingBox": [27.698283958497438, 28.87654029496592, 333.2058907519272, 91.34898898431332] },
+    { "text": "巴 stays", "confidence": 0.0001288667454711167, "boundingBox": [25.96281397174254, 139.5573031135531, 178.71129317111462, 196.8801968864469] },
+    { "text": " Flights", "confidence": 0.00013848887978578397, "boundingBox": [222.94027944711536, 136.71239483173076, 397.5284705528846, 198.12302183493588] },
+    { "text": " Car rentals", "confidence": 0.0001434069587630841, "boundingBox": [447.7540521978022, 145.51846153846154, 664.2548763736263, 190.91903846153846] },
+    { "text": " Attractions", "confidence": 0.0001406627110905674, "boundingBox": [722.0774811126373, 141.06035657051282, 939.4894831730769, 196.9792267628205] },
+    { "text": "Tax Airport taxis", "confidence": 0.00013666700997515074, "boundingBox": [1000.904251066098, 149.08939676616916, 1223.113606076759, 187.34810323383084] },
+    { "text": "Awaiting confirmation", "confidence": 0.00014559335020060922, "boundingBox": [30.87189559454521, 302.8927608981091, 354.31396194372894, 347.2745217993422] },
+    { "text": "Your booking is pending airline", "confidence": 0.00014463689546889073, "boundingBox": [28.19252232142854, 351.64675164473687, 1022.5753348214286, 430.16991502192985] },
+    { "text": "confirmation", "confidence": 0.0001478006475413151, "boundingBox": [32.47838278443891, 436.47129883345843, 450.9492879792498, 502.8313922150445] },
+    { "text": "Thisusla t  'tf", "confidence": 0.0000921144464803071, "boundingBox": [33.65057607409851, 526.897410790315, 1316.8700689398688, 572.0320073621988] },
+    { "text": "update this page and email you at serg", "confidence": 0.00014606290409395945, "boundingBox": [34.998890379851346, 579.5003973988439, 599.974323905863, 618.8579359344893] },
+    { "text": "@gmail.com.", "confidence": 0.00014080760080163667, "boundingBox": [738.3259866446579, 578.5607580532212, 936.1338347839135, 616.5934086134454] },
+    { "text": "Johannesburg (JNB) to Cape Town (CPT)", "confidence": 0.00014536796395757333, "boundingBox": [255.78606605607857, 685.2349122492836, 825.6023268010642, 724.5984210840496] },
+    { "text": "Thu 10 Apr· 05:55 - Thu 10 Apr· 08:15", "confidence": 0.000139901193958725, "boundingBox": [256.9602372895814, 734.464644705414, 769.6335127104186, 769.8916052945859] },
+    { "text": "Direct·2h 20m·Economy", "confidence": 0.00014542740886696218, "boundingBox": [254.40517418954957, 780.217117303911, 606.1668793720418, 822.4096381773775] },
+    { "text": "Safair·FA200", "confidence": 0.00014592634812280535, "boundingBox": [253.24959935897434, 830.1051014957264, 447.7995077838827, 868.1032318376068] },
+    { "text": "View flight details", "confidence": 0.00014430406140406236, "boundingBox": [256.2564249517375, 892.3712415540541, 501.19893219111964, 930.7995917792792] },
+    { "text": "Cape Town (CPT) to Johannesburg (JNB)", "confidence": 0.00014666142160051345, "boundingBox": [257.39866841133005, 1029.6838182471265, 825.60133158867, 1069.0453484195402] },
+    { "text": "Sun 13 Apr· 10:50 – Sun 13 Apr· 12:55", "confidence": 0.00013941866987885173, "boundingBox": [256.9652825936199, 1078.9175768608413, 761.5704316920943, 1114.334506472492] },
+    { "text": "Direct·2h 05m· Economy", "confidence": 0.0001426877537544359, "boundingBox": [255.370912529624, 1122.146955266399, 606.7651282068256, 1167.3012995754407] },
+    { "text": "Safair·FA693", "confidence": 0.000146352720904968, "boundingBox": [253.2408444309927, 1172.942231638418, 449.4198698547214, 1210.9577683615819] },
+    { "text": "View flight details", "confidence": 0.0001417454772863964, "boundingBox": [256.26198068513116, 1236.824681122449, 499.5817693148687, 1275.2419855442176] },
+    { "text": " Explore Cape Town stays", "confidence": 0.00014553652855537526, "boundingBox": [63.57102990817345, 1433.316865056804, 489.1941598683264, 1481.2767128990274] },
+    { "text": "×", "confidence": 0.00012000663173828385, "boundingBox": [1304.5038903061225, 1431.3699107142857, 1354.647895408163, 1479.6155059523808] }
+  ],
+  "expected": {
+    "originAirport": "JNB",
+    "destinationAirport": "CPT",
+    "departureDate": "2026-04-10",
+    "returnDate": "2026-04-13"
+  }
+}
