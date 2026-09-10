@@ -5,6 +5,22 @@ every change that touches runtime behavior, so a bug report against a running in
 can always be tied back to the exact code that produced it (`ENGINE_VERSION` is exported
 and appears in every `TicketScanResult.provenance`, and in the demo's version badge).
 
+## 0.9.0
+
+- **Route matching now handles a third real layout: "CODE- clock time" on its own
+  line, once per leg** (`src/textExtraction.ts`), from the same real CheapOair
+  booking confirmation as 0.8.0. That ticket prints `"YVR- 02:20 pm"` for the
+  departure leg and, several lines later, `"YCG-03:31pm"` for the arrival leg — the
+  two codes are never on the same line, adjacent, or parenthesized, so neither of the
+  two existing route patterns could see them. Added a third pattern that looks for a
+  3-letter code immediately followed by a clock time (`H:MM`/`HH:MM`, optional am/pm)
+  anywhere in the document; if exactly two distinct table-known airport codes turn up
+  this way, the first in document order is origin and the second destination — same
+  "document order, no value beats a wrong one" approach already used for the
+  unlabeled-date fallback. Only runs when the other two route patterns found nothing.
+- Extends the 0.8.0 CheapOair fixture to also assert the now-correct
+  `originAirport`/`destinationAirport` (`YVR`/`YCG`), since it's the same report.
+
 ## 0.8.0
 
 Fixed a real CheapOair booking-confirmation report: a one-way domestic flight (no

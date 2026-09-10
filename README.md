@@ -258,6 +258,13 @@ unversioned layout with a `ppocr_keys_v1.txt` file to the current `v1.1/` layout
   scanner does not validate that a departure date is in the future or otherwise judge
   date plausibility — it passes through whatever's printed, and rejecting an
   implausible date is left to the downstream eligibility-matching service.
+- **Route matching now also handles "CODE- clock time" printed once per leg, on
+  separate lines** (fixed in 0.9.0, same real CheapOair report as the entry above):
+  `"YVR- 02:20 pm"` for departure, `"YCG-03:31pm"` for arrival, several lines apart,
+  never adjacent and never parenthesized. `src/textExtraction.ts` now also looks for a
+  3-letter code directly followed by a clock time anywhere in the document, and — only
+  when the other two route patterns found nothing — takes the first two distinct
+  table-known codes found this way, in document order, as origin/destination.
 - **Multi-leg BCBP barcodes only yield their first leg.** BCBP encodes additional legs
   (e.g. a connecting flight) via variable-length conditional data this v1 parser doesn't
   walk — see the comment in `src/bcbp.ts`. A round trip is virtually always two separate

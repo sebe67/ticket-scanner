@@ -41,6 +41,26 @@ test("does not treat a line with more than two parenthesized codes as a route", 
   assert.equal(result.destinationAirport, undefined);
 });
 
+test("extracts a route from two separate 'CODE- clock time' lines (real CheapOair layout)", () => {
+  // Real report: each leg's code sits on its own line next to that leg's own clock
+  // time ("YVR- 02:20 pm", "YCG-03:31pm") — never adjacent to the other code, never
+  // parenthesized, so neither pattern above sees them. Document order decides which is origin.
+  const result = extractFieldsFromOcrLines([
+    line("Vancouver, British Columbia"),
+    line("YVR- 02:20 pm"),
+    line("Castlegar, British Columbia"),
+    line("YCG-03:31pm"),
+  ]);
+  assert.equal(result.originAirport, "YVR");
+  assert.equal(result.destinationAirport, "YCG");
+});
+
+test("does not guess a route from 'CODE near clock time' when more than two distinct codes appear", () => {
+  const result = extractFieldsFromOcrLines([line("MNL- 02:20 pm"), line("NRT-03:31pm"), line("SFO-04:00pm")]);
+  assert.equal(result.originAirport, undefined);
+  assert.equal(result.destinationAirport, undefined);
+});
+
 test("extracts a labeled departure date from the following line", () => {
   const result = extractFieldsFromOcrLines([line("Departure"), line("12 SEP 2026")]);
   assert.equal(result.departureDate?.value, "2026-09-12");

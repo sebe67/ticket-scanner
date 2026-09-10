@@ -16,6 +16,17 @@ import type { RecognizedTextLine, TicketField, TicketFields } from "./types.js";
 const ROUTE_PATTERN = /\b([A-Z]{3})\b\s*(?:-|–|—|>|→|➔|\/|\bto\b)\s*\b([A-Z]{3})\b/i;
 /** OTA-style "City (CODE) to City (CODE)" — the two codes aren't adjacent to each other (a city name sits between them), so ROUTE_PATTERN alone can't see them; this looks for exactly two parenthesized codes anywhere in the line instead. */
 const PAREN_CODE_PATTERN = /\(([A-Z]{3})\)/g;
+/**
+ * A real CheapOair booking confirmation prints each leg's airport code immediately
+ * before that leg's own local clock time, on its own line ("YVR- 02:20 pm", separately
+ * "YCG-03:31pm") — the two codes are never on the same line at all, so neither pattern
+ * above can see them. This looks for a code directly followed by "H:MM"/"HH:MM"
+ * (optionally am/pm) anywhere in the document; if collecting these in document order
+ * yields exactly two distinct table-known airport codes, the first is origin and the
+ * second destination — the same "document order, no value beats a wrong one" approach
+ * already used for the unlabeled-date fallback below.
+ */
+const CODE_NEAR_TIME_PATTERN = /\b([A-Z]{3})\b[\s-]*\d{1,2}:\d{2}\s*(?:am|pm)?\b/i;
 
 const DEPARTURE_LABEL = /\b(depart(?:ure|ing)?|outbound|onward)\b/i;
 const RETURN_LABEL = /\b(return(?:ing)?|inbound|arriving back)\b/i;
@@ -64,6 +75,20 @@ export function extractFieldsFromOcrLines(lines: RecognizedTextLine[], reference
         result.destinationAirport = parenMatches[1][1].toUpperCase();
         break;
       }
+    }
+  }
+
+  if (!result.originAirport) {
+    const codesNearTime: string[] = [];
+    for (const line of lines) {
+      const match = line.text.match(CODE_NEAR_TIME_PATTERN);
+      if (!match) continue;
+      const code = match[1].toUpperCase();
+      if (lookupAirport(code) && !codesNearTime.includes(code)) codesNearTime.push(code);
+    }
+    if (codesNearTime.length === 2) {
+      result.originAirport = codesNearTime[0];
+      result.destinationAirport = codesNearTime[1];
     }
   }
 
