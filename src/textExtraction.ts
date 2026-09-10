@@ -91,30 +91,25 @@ export function extractFieldsFromOcrLines(lines: RecognizedTextLine[], reference
   }
 
   if (!result.originAirport) {
-    const codesNearTime: string[] = [];
-    for (const line of lines) {
-      const match = line.text.match(CODE_NEAR_TIME_PATTERN);
-      if (!match) continue;
-      const code = match[1].toUpperCase();
-      if (lookupAirport(code) && !codesNearTime.includes(code)) codesNearTime.push(code);
-    }
-    if (codesNearTime.length === 2) {
-      result.originAirport = codesNearTime[0];
-      result.destinationAirport = codesNearTime[1];
-    }
-  }
-
-  if (!result.originAirport) {
-    const bareCodeLines: string[] = [];
+    // Combined, not two separate passes: a real Singapore Airlines boarding pass mixed
+    // both layouts on the same document — "MNL" alone on its own line (needs the
+    // bare-code check), but "SIN 20:50" with its time on the same line (needs the
+    // code-near-time check). Running each pattern as its own complete pass over the
+    // whole document only ever found one code each, so neither pass's "exactly two"
+    // threshold was ever met even though the two codes together were sitting right
+    // there. Checking both patterns per line, and merging into one candidate list, is
+    // what catches this — still bounded by the same "exactly two distinct codes, or
+    // don't guess" rule.
+    const candidateCodes: string[] = [];
     for (const line of lines) {
       const t = line.text.trim();
-      if (!BARE_CODE_LINE_PATTERN.test(t)) continue;
-      const code = t.toUpperCase();
-      if (lookupAirport(code) && !bareCodeLines.includes(code)) bareCodeLines.push(code);
+      const timeMatch = t.match(CODE_NEAR_TIME_PATTERN);
+      const code = timeMatch ? timeMatch[1].toUpperCase() : BARE_CODE_LINE_PATTERN.test(t) ? t.toUpperCase() : null;
+      if (code && lookupAirport(code) && !candidateCodes.includes(code)) candidateCodes.push(code);
     }
-    if (bareCodeLines.length === 2) {
-      result.originAirport = bareCodeLines[0];
-      result.destinationAirport = bareCodeLines[1];
+    if (candidateCodes.length === 2) {
+      result.originAirport = candidateCodes[0];
+      result.destinationAirport = candidateCodes[1];
     }
   }
 

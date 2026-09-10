@@ -84,6 +84,17 @@ test("does not guess a route from bare-code lines when more than two distinct co
   assert.equal(result.destinationAirport, undefined);
 });
 
+test("extracts a route mixing a bare-code line and a code-near-time line (real Singapore Airlines layout)", () => {
+  // Real report: "MNL" sits alone on its own line (needs the bare-code check), but
+  // "SIN 20:50" has its time on the same line (needs the code-near-time check) -- the
+  // two existing patterns each ran as a full pass over the whole document, so each only
+  // ever found its one matching code and never reached the "exactly two" threshold on
+  // its own. They're now checked per line and merged into one candidate list.
+  const result = extractFieldsFromOcrLines([line("MNL"), line("17:05"), line("SIN 20:50")]);
+  assert.equal(result.originAirport, "MNL");
+  assert.equal(result.destinationAirport, "SIN");
+});
+
 test("extracts a labeled departure date from the following line", () => {
   const result = extractFieldsFromOcrLines([line("Departure"), line("12 SEP 2026")]);
   assert.equal(result.departureDate?.value, "2026-09-12");

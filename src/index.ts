@@ -22,7 +22,7 @@ import type {
   TicketScanResult,
 } from "./types.js";
 
-export const ENGINE_VERSION = "ticket-scanner/bcbp+ppocrv5-mobile-onnxruntime-web@0.11.0";
+export const ENGINE_VERSION = "ticket-scanner/bcbp+ppocrv5-mobile-onnxruntime-web@0.12.0";
 const REC_LINE_HEIGHT = 48;
 
 /**
