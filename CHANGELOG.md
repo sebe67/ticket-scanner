@@ -10,14 +10,17 @@ and appears in every `TicketScanResult.provenance`, and in the demo's version ba
 - **Route matching's two "code isn't adjacent to the other code" fallbacks
   (code-near-time from 0.9.0, bare-code-line from 0.10.0) are now one combined pass
   instead of two separate ones** (`src/textExtraction.ts`), fixed from a real Singapore
-  Airlines boarding pass that mixed both layouts on the same document: `"MNL"` sits
-  alone on its own line with no time attached, but `"SIN 20:50"` has its time on the
-  same line as its code. Each pattern previously ran as its own complete pass over the
-  whole document and only ever found its *one* matching code — the code-near-time pass
-  found only `SIN`, the bare-code-line pass found only `MNL` — so neither pass's
-  "exactly two distinct codes" threshold was ever satisfied, even though the two codes
-  together were sitting right there. Now both patterns are checked per line and merged
-  into one candidate list, still bounded by the same "exactly two distinct codes, or
+  Airlines boarding pass. Both legs are printed the same way on that ticket (a code
+  next to its own local time) — this isn't two different document layouts. The OCR's
+  text-box detection just grouped the two legs inconsistently: `"SIN"` and `"20:50"`
+  came back as one line, while `"MNL"` and `"17:05"` came back as two separate lines.
+  Each pattern previously ran as its own complete pass over the whole document and only
+  ever found its *one* matching code — the code-near-time pass found only `SIN`, the
+  bare-code-line pass found only `MNL` — so neither pass's "exactly two distinct codes"
+  threshold was ever satisfied, even though the two codes together were sitting right
+  there. Now both patterns are checked per line and merged into one candidate list,
+  which catches this regardless of which way OCR happened to split things, still
+  bounded by the same "exactly two distinct codes, or
   don't guess" rule as before.
 
 Adds a sixth real regression fixture

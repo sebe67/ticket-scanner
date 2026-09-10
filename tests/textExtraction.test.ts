@@ -85,11 +85,13 @@ test("does not guess a route from bare-code lines when more than two distinct co
 });
 
 test("extracts a route mixing a bare-code line and a code-near-time line (real Singapore Airlines layout)", () => {
-  // Real report: "MNL" sits alone on its own line (needs the bare-code check), but
-  // "SIN 20:50" has its time on the same line (needs the code-near-time check) -- the
-  // two existing patterns each ran as a full pass over the whole document, so each only
-  // ever found its one matching code and never reached the "exactly two" threshold on
-  // its own. They're now checked per line and merged into one candidate list.
+  // Real report: both legs are printed the same way (code next to its own time) --
+  // OCR's text-box detection just grouped them inconsistently, putting "SIN"/"20:50"
+  // on one line (needs the code-near-time check) but "MNL"/"17:05" on two separate
+  // lines (needs the bare-code check). The two patterns each ran as a full pass over
+  // the whole document, so each only ever found its one matching code and never
+  // reached the "exactly two" threshold on its own. They're now checked per line and
+  // merged into one candidate list, which doesn't care which way OCR split things.
   const result = extractFieldsFromOcrLines([line("MNL"), line("17:05"), line("SIN 20:50")]);
   assert.equal(result.originAirport, "MNL");
   assert.equal(result.destinationAirport, "SIN");

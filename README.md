@@ -281,11 +281,14 @@ unversioned layout with a `ppocr_keys_v1.txt` file to the current `v1.1/` layout
   exactly two distinct such codes turn up in the whole document.
 - **The code-near-time and bare-code-line fallbacks (0.9.0, 0.10.0) are now one
   combined pass instead of two separate ones** (fixed in 0.12.0, from a real Singapore
-  Airlines boarding pass that mixed both layouts on the same document — `"MNL"` alone
-  on its own line, but `"SIN 20:50"` with its time attached). Running each pattern as
-  its own complete pass over the whole document meant each only ever found its one
-  matching code, so neither pass's "exactly two" threshold was ever met even with both
-  codes present. Both patterns are now checked per line into one merged candidate list.
+  Airlines boarding pass). Both legs on that ticket are printed the same way (a code
+  next to its own local time) — it's not two different document layouts, just OCR's
+  text-box detection grouping the two legs inconsistently: `"SIN"`/`"20:50"` came back
+  as one line, `"MNL"`/`"17:05"` as two separate ones. Running each pattern as its own
+  complete pass over the whole document meant each only ever found its one matching
+  code, so neither pass's "exactly two" threshold was ever met even with both codes
+  present. Both patterns are now checked per line into one merged candidate list, which
+  doesn't care which way OCR happened to split a given leg's code and time.
 - **Multi-leg BCBP barcodes only yield their first leg.** BCBP encodes additional legs
   (e.g. a connecting flight) via variable-length conditional data this v1 parser doesn't
   walk — see the comment in `src/bcbp.ts`. A round trip is virtually always two separate

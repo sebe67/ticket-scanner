@@ -91,15 +91,22 @@ export function extractFieldsFromOcrLines(lines: RecognizedTextLine[], reference
   }
 
   if (!result.originAirport) {
-    // Combined, not two separate passes: a real Singapore Airlines boarding pass mixed
-    // both layouts on the same document — "MNL" alone on its own line (needs the
-    // bare-code check), but "SIN 20:50" with its time on the same line (needs the
-    // code-near-time check). Running each pattern as its own complete pass over the
-    // whole document only ever found one code each, so neither pass's "exactly two"
-    // threshold was ever met even though the two codes together were sitting right
-    // there. Checking both patterns per line, and merging into one candidate list, is
-    // what catches this — still bounded by the same "exactly two distinct codes, or
-    // don't guess" rule.
+    // Combined, not two separate passes: a real Singapore Airlines boarding pass prints
+    // both codes right next to their own local time (same visual layout for both), but
+    // the OCR's text-box detection grouped them inconsistently — "SIN" and "20:50" came
+    // back as one line ("SIN 20:50", needs the code-near-time check), while "MNL" and
+    // "17:05" came back as two separate lines ("MNL" alone needs the bare-code check).
+    // Nothing about the printed document differs between the two legs; it's OCR's line
+    // segmentation that isn't guaranteed to be consistent even within one image, which
+    // is exactly why this can't be fixed by picking the "right" single pattern — the
+    // same two codes can come back grouped either way on different runs, or even (as
+    // here) differently from each other on the same page. Running each pattern as its
+    // own complete pass over the whole document only ever found one code each, so
+    // neither pass's "exactly two" threshold was ever met even though the two codes
+    // together were sitting right there. Checking both patterns per line, and merging
+    // into one candidate list, is what catches this regardless of which way the OCR
+    // happened to split things — still bounded by the same "exactly two distinct
+    // codes, or don't guess" rule.
     const candidateCodes: string[] = [];
     for (const line of lines) {
       const t = line.text.trim();
