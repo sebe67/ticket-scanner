@@ -22,7 +22,7 @@ import type {
   TicketScanResult,
 } from "./types.js";
 
-export const ENGINE_VERSION = "ticket-scanner/bcbp+ppocrv5-mobile-onnxruntime-web@0.14.0";
+export const ENGINE_VERSION = "ticket-scanner/bcbp+ppocrv5-mobile-onnxruntime-web@0.15.0";
 const REC_LINE_HEIGHT = 48;
 
 /**
@@ -194,16 +194,37 @@ export interface ScanTicketOptions {
   includeDebugInfo?: boolean;
 }
 
-function isPdfInput(input: ScanInput): input is ArrayBuffer | Uint8Array {
-  return input instanceof ArrayBuffer || input instanceof Uint8Array;
+/**
+ * True for anything this should route through the PDF page-rasterization path rather
+ * than treating as a single image: raw bytes (`ArrayBuffer`/`Uint8Array` — the caller
+ * already knows it's a PDF and did the conversion themselves), or a `File`/`Blob`
+ * whose own reported MIME type says so. The latter is what makes `scanTicket` usable
+ * with "whatever the browser's file input handed back," untouched — a caller with a
+ * mixed-format upload (a user might submit a screenshot *or* a PDF e-ticket) doesn't
+ * need its own branch to tell them apart first; that used to be required (checking
+ * `file.type === "application/pdf"` and calling `.arrayBuffer()` before this function
+ * even saw it, exactly what `demo/main.ts` did until this was added).
+ */
+function isPdfInput(input: ScanInput): boolean {
+  if (input instanceof ArrayBuffer || input instanceof Uint8Array) return true;
+  return input instanceof Blob && input.type === "application/pdf";
+}
+
+async function toPdfBytes(input: ScanInput): Promise<ArrayBuffer | Uint8Array> {
+  return input instanceof Blob ? await input.arrayBuffer() : (input as ArrayBuffer | Uint8Array);
 }
 
 /**
  * Runs the full on-device pipeline (barcode decode + BCBP parse, then OCR fallback) on
- * a plane ticket — a photo/screenshot (`ImageInput`) or a PDF e-ticket/itinerary (raw
- * bytes as `ArrayBuffer`/`Uint8Array`). Everything happens locally in the browser via
- * onnxruntime-web (WASM) and zxing-wasm; the image/PDF never leaves the device, and the
- * only network calls are the initial (cached) model/wasm downloads.
+ * a plane ticket. Accepts whatever a file picker or drag-and-drop hands you directly —
+ * a `File`/`Blob` of any image type (JPEG, PNG, WEBP, whatever the browser's own image
+ * decoder supports) or of type `application/pdf` — as well as an `HTMLImageElement`/
+ * `HTMLCanvasElement`/`ImageBitmap`, or a PDF's raw bytes as `ArrayBuffer`/`Uint8Array`
+ * if you've already read the file yourself. Which of those it is gets detected
+ * automatically; the caller doesn't need its own image-vs-PDF branch. Everything
+ * happens locally in the browser via onnxruntime-web (WASM) and zxing-wasm; the
+ * image/PDF never leaves the device, and the only network calls are the initial
+ * (cached) model/wasm downloads.
  *
  * A PDF's pages are each scanned independently and merged by per-field confidence (e.g.
  * one page might carry the printed itinerary, another an embedded boarding-pass
@@ -211,8 +232,9 @@ function isPdfInput(input: ScanInput): input is ArrayBuffer | Uint8Array {
  */
 export async function scanTicket(input: ScanInput, options: ScanTicketOptions = {}): Promise<TicketScanResult> {
   const config = options.modelConfig ?? defaultModelConfig();
+  const inputIsPdf = isPdfInput(input);
 
-  const canvases = isPdfInput(input) ? await rasterizePdf(input) : [await toCanvas(input)];
+  const canvases = inputIsPdf ? await rasterizePdf(await toPdfBytes(input)) : [await toCanvas(input as ImageInput)];
   if (canvases.length === 0) throw new Error("ticket-scanner: input produced no pages to scan");
 
   const pageResults = await Promise.all(canvases.map((canvas) => scanOnePage(canvas, config)));
@@ -228,7 +250,7 @@ export async function scanTicket(input: ScanInput, options: ScanTicketOptions = 
     rawOcrText: p.rawOcrText,
   }));
   const provenance: TicketScanProvenance = {
-    inputKind: isPdfInput(input) ? "pdf" : "image",
+    inputKind: inputIsPdf ? "pdf" : "image",
     engineVersion: ENGINE_VERSION,
     pages,
   };

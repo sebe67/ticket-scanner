@@ -36,8 +36,9 @@ scanBtn.addEventListener("click", async () => {
 
   try {
     const start = performance.now();
-    const input = file.type === "application/pdf" ? await file.arrayBuffer() : file;
-    const result = await scanTicket(input, { includeDebugInfo: true });
+    // scanTicket detects image vs. PDF itself from the file's own type — no need for
+    // this demo to branch on it first.
+    const result = await scanTicket(file, { includeDebugInfo: true });
     const elapsedMs = Math.round(performance.now() - start);
 
     versionEl.textContent = result.provenance.engineVersion;

@@ -5,6 +5,32 @@ every change that touches runtime behavior, so a bug report against a running in
 can always be tied back to the exact code that produced it (`ENGINE_VERSION` is exported
 and appears in every `TicketScanResult.provenance`, and in the demo's version badge).
 
+## 0.15.0
+
+- **`scanTicket` now detects image vs. PDF input itself, instead of requiring the
+  caller to branch on it first** (`src/index.ts`). Previously, telling a PDF apart
+  from an image relied purely on the JS *type* of the value passed in — an
+  `ArrayBuffer`/`Uint8Array` meant "this is a PDF," anything else was treated as an
+  image — so a caller handling a mixed-format upload (a user might submit a screenshot
+  *or* a PDF e-ticket) had to check the `File`'s own `.type` and call
+  `.arrayBuffer()` themselves before ever calling `scanTicket`, exactly what
+  `demo/main.ts` did until now. `scanTicket` now also recognizes a `File`/`Blob` whose
+  own reported type is `application/pdf` and converts it internally — the caller can
+  now just hand over whatever the file picker gave them, of any type, unexamined.
+  Passing an already-converted `ArrayBuffer`/`Uint8Array` still works exactly as
+  before; this is purely additive.
+- Simplified `demo/main.ts` to drop its now-unnecessary image-vs-PDF branch, so its
+  own next real PDF test naturally exercises this new path.
+- **Not independently re-verified in a real browser in this session** — this
+  environment's headless Chromium can't reach the OCR model bucket at all (see
+  `scripts/smoke-test.mjs`'s own header comment for why), which is what running
+  `scanTicket` end-to-end on a real file requires; `rasterizePdf` itself is unchanged
+  and already covered by the existing smoke test. The change is a small, mechanical
+  addition (check `Blob.type`, call the standard `.arrayBuffer()`) rather than
+  something novel enough to need bespoke verification, but it's true to this
+  project's own standard to say so plainly rather than imply it was proven here. The
+  next real PDF you test through `npm run demo` will exercise it for real.
+
 ## 0.14.0
 
 - **Direct image uploads now honor a photo's EXIF orientation** (`src/imageUtils.ts`).

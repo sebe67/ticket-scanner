@@ -82,12 +82,15 @@ configureOrtWasmPaths("/onnxruntime-wasm/");
 configureZxingWasmPath("/zxing-wasm/");
 configurePdfWorker("/pdfjs-dist/pdf.worker.min.mjs");
 
-// Image input: Blob, HTMLImageElement, HTMLCanvasElement, or ImageBitmap.
-const result = await scanTicket(imageBlob);
+// Hand it whatever a file input/drag-and-drop gave you, whether the user uploaded a
+// screenshot (JPEG/PNG/WEBP/whatever the browser's own image decoder supports) or a
+// PDF e-ticket — scanTicket tells them apart itself from the File's own type, no
+// branching needed on your end.
+const result = await scanTicket(uploadedFile);
 
-// PDF input: raw bytes.
-const pdfBytes = await pdfFile.arrayBuffer();
-const result2 = await scanTicket(pdfBytes);
+// Also accepts an HTMLImageElement/HTMLCanvasElement/ImageBitmap directly, or a PDF's
+// raw bytes as ArrayBuffer/Uint8Array if you've already read the file yourself.
+const result2 = await scanTicket(someCanvas);
 
 console.log(result.fields);
 // { originCountry: { value: "Philippines", confidence: 0.97, source: "barcode" }, ... }
