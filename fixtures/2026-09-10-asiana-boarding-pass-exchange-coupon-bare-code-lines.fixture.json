@@ -1,0 +1,43 @@
+{
+  "kind": "ocrLines",
+  "description": "A real Asiana Airlines 'Boarding Pass Exchange Coupon' (MNL to ICN) returned no originAirport/destinationAirport at all, even though MNL and ICN are both clearly printed. This document's FROM/TO section is a wide table, and the OCR emitted each cell as its own separate line in an inconsistent scan order: \"FROM\", \"TO\", \"TAKE-OFF\", \"LANDING\" (headers) followed by \"MNL\", a misrecognized arrow glyph between the codes (came back as the unrelated character \"ナ\"), then \"ICN\" -- never on the same line as each other, and never paired with a clock time on the same line either (the times are their own separate lines too), so none of the three existing route patterns (adjacent codes, parenthesized codes, code-next-to-a-time) could see them. Fixed by adding a fourth, narrower pattern: a line whose *entire* trimmed text is nothing but a 3-letter code that resolves to a real airport. Collected in document order (same 'no value beats a wrong one' approach as the other route fallbacks); only tried when the other three patterns already found nothing.",
+  "reportedEngineVersion": "ticket-scanner/bcbp+ppocrv5-mobile-onnxruntime-web@0.9.0",
+  "referenceDate": "2026-09-10T12:00:00Z",
+  "lines": [
+    { "text": "ASIANA AIRLINES", "confidence": 0.9730320930480957, "boundingBox": [59.6, 57.5, 348.9, 100.2] },
+    { "text": "A STAR ALLIANOE MEMBER ", "confidence": 0.9166146413139675, "boundingBox": [55.0, 112.8, 361.6, 153.0] },
+    { "text": "This is not a boarding pass.", "confidence": 0.9972551912069321, "boundingBox": [854.8, 106.8, 1385.2, 162.6] },
+    { "text": "Boarding Pass Exchange Coupon/昏会正奇", "confidence": 0.9332320330774083, "boundingBox": [48.2, 234.9, 1225.7, 302.9] },
+    { "text": "Silva / Sebastian Vincent Pablo Que", "confidence": 0.9667647276605879, "boundingBox": [114.3, 342.3, 1151.5, 411.1] },
+    { "text": "FROM", "confidence": 0.9968621879816055, "boundingBox": [588.2, 460.0, 679.3, 496.9] },
+    { "text": "TO", "confidence": 0.9902710020542145, "boundingBox": [868.5, 466.5, 911.2, 493.6] },
+    { "text": "TAKE-OFF", "confidence": 0.9770137369632721, "boundingBox": [294.5, 491.2, 402.5, 528.8] },
+    { "text": "LANDING", "confidence": 0.9988029514040265, "boundingBox": [1137.4, 491.3, 1238.7, 528.7] },
+    { "text": "MNL", "confidence": 0.9941872954368591, "boundingBox": [430.1, 513.9, 694.8, 627.4] },
+    { "text": "ナ", "confidence": 0.41500791907310486, "boundingBox": [683.0, 507.3, 835.7, 630.6] },
+    { "text": "ICN", "confidence": 0.9982930421829224, "boundingBox": [856.2, 512.1, 1069.3, 630.8] },
+    { "text": "12:05", "confidence": 0.998009979724884, "boundingBox": [293.2, 528.3, 403.8, 584.5] },
+    { "text": "16:55", "confidence": 0.9988012194633484, "boundingBox": [1140.6, 531.1, 1251.7, 581.9] },
+    { "text": "06Jul2026", "confidence": 0.9584217601352267, "boundingBox": [191.4, 584.9, 405.1, 643.7] },
+    { "text": "06Jul2026", "confidence": 0.9593121144506667, "boundingBox": [1135.9, 583.2, 1352.0, 644.0] },
+    { "text": "Terminal 1", "confidence": 0.9686003446578979, "boundingBox": [491.1, 635.2, 680.7, 682.8] },
+    { "text": "Terminal 2", "confidence": 0.9828299641609192, "boundingBox": [866.1, 633.5, 1059.5, 683.8] },
+    { "text": "Manila Ninoy Aquino Intl", "confidence": 0.9583669553200403, "boundingBox": [263.3, 683.5, 678.4, 731.9] },
+    { "text": "Seoul Incheon International", "confidence": 0.9837897993900158, "boundingBox": [867.8, 681.8, 1333.3, 731.6] },
+    { "text": "FLIGHT", "confidence": 0.9977325598398844, "boundingBox": [80.5, 796.8, 188.5, 834.5] },
+    { "text": "SEAT", "confidence": 0.9995291531085968, "boundingBox": [495.4, 796.8, 576.0, 836.2] },
+    { "text": "BOARDING TIME", "confidence": 0.9790058273535508, "boundingBox": [759.7, 798.5, 986.0, 834.4] },
+    { "text": "GATE", "confidence": 0.9979855865240097, "boundingBox": [1073.8, 796.6, 1159.7, 836.4] },
+    { "text": "ZONE", "confidence": 0.9992728233337402, "boundingBox": [1375.2, 796.5, 1464.5, 836.5] },
+    { "text": "OZ702", "confidence": 0.9985134482383728, "boundingBox": [81.8, 853.0, 289.4, 921.2] },
+    { "text": "37D", "confidence": 0.9994301597277323, "boundingBox": [490.1, 846.2, 623.4, 919.7] },
+    { "text": "11:35", "confidence": 0.9961569786071778, "boundingBox": [759.2, 844.6, 931.3, 914.6] },
+    { "text": "Check monitors", "confidence": 0.9864039080483573, "boundingBox": [1079.1, 853.5, 1316.5, 896.5] },
+    { "text": "2", "confidence": 0.9999940395355225, "boundingBox": [1397.4, 850.8, 1452.0, 918.4] }
+  ],
+  "expected": {
+    "originAirport": "MNL",
+    "destinationAirport": "ICN",
+    "departureDate": "2026-07-06"
+  }
+}

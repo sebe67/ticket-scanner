@@ -265,6 +265,14 @@ unversioned layout with a `ppocr_keys_v1.txt` file to the current `v1.1/` layout
   3-letter code directly followed by a clock time anywhere in the document, and — only
   when the other two route patterns found nothing — takes the first two distinct
   table-known codes found this way, in document order, as origin/destination.
+- **Route matching now also handles airport codes split across separate OCR lines
+  with nothing to anchor on** (fixed in 0.10.0, from a real Asiana "Boarding Pass
+  Exchange Coupon"): its wide FROM/TO table got OCR'd as `"MNL"`, a garbled arrow
+  glyph, then `"ICN"`, each its own line — not adjacent, not parenthesized, and not
+  paired with a time either. `src/textExtraction.ts` now also treats a line whose
+  entire trimmed text is nothing but a 3-letter table-known code as a candidate,
+  tried only when the other three route patterns find nothing, and only acted on when
+  exactly two distinct such codes turn up in the whole document.
 - **Multi-leg BCBP barcodes only yield their first leg.** BCBP encodes additional legs
   (e.g. a connecting flight) via variable-length conditional data this v1 parser doesn't
   walk — see the comment in `src/bcbp.ts`. A round trip is virtually always two separate

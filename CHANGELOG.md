@@ -5,6 +5,26 @@ every change that touches runtime behavior, so a bug report against a running in
 can always be tied back to the exact code that produced it (`ENGINE_VERSION` is exported
 and appears in every `TicketScanResult.provenance`, and in the demo's version badge).
 
+## 0.10.0
+
+- **Route matching now handles a fourth real layout: airport codes split across
+  separate OCR lines with no time, label, or adjacency to anchor on**
+  (`src/textExtraction.ts`), from a real Asiana Airlines "Boarding Pass Exchange
+  Coupon." Its FROM/TO section is a wide table; the OCR emitted each cell as its own
+  line in an inconsistent scan order — `"MNL"`, a misrecognized arrow glyph between the
+  codes (came back as the unrelated character `"ナ"`), then `"ICN"` — never on the same
+  line as each other and never paired with a time on the same line either (the times
+  are separate lines too). None of the three existing route patterns require less than
+  "both codes on one line," so none could see this. Added a fourth pattern, tried only
+  when the other three find nothing: a line whose *entire* trimmed text is nothing but
+  a 3-letter code that resolves to a real airport. Deliberately the narrowest of the
+  four patterns (no time/label/parens to anchor on) — a line with literally nothing
+  else on it is a strong enough signal on its own, and it's still bounded by the same
+  "exactly two distinct codes, or don't guess" rule as the others.
+
+Adds a fifth real regression fixture
+(`fixtures/2026-09-10-asiana-boarding-pass-exchange-coupon-bare-code-lines.fixture.json`).
+
 ## 0.9.0
 
 - **Route matching now handles a third real layout: "CODE- clock time" on its own

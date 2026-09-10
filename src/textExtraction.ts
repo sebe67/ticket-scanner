@@ -27,6 +27,18 @@ const PAREN_CODE_PATTERN = /\(([A-Z]{3})\)/g;
  * already used for the unlabeled-date fallback below.
  */
 const CODE_NEAR_TIME_PATTERN = /\b([A-Z]{3})\b[\s-]*\d{1,2}:\d{2}\s*(?:am|pm)?\b/i;
+/**
+ * A real Asiana boarding-pass-exchange coupon lays FROM/TO out as a wide table whose
+ * cells the OCR emits as separate lines in an inconsistent scan order — "MNL", a
+ * misrecognized arrow glyph, then "ICN" each come back as their own standalone
+ * RecognizedTextLine, nowhere near a time or a label on the same line, so none of the
+ * patterns above (which all require both codes, or a code and a time, on one line) can
+ * see them. This is deliberately narrow to keep the false-positive risk low despite
+ * having no time/label/parens to anchor on: it only matches a line whose *entire*
+ * trimmed text is exactly three letters — real prose essentially never produces a line
+ * with nothing else on it. Collected in document order, same as the other fallbacks.
+ */
+const BARE_CODE_LINE_PATTERN = /^[A-Za-z]{3}$/;
 
 const DEPARTURE_LABEL = /\b(depart(?:ure|ing)?|outbound|onward)\b/i;
 const RETURN_LABEL = /\b(return(?:ing)?|inbound|arriving back)\b/i;
@@ -89,6 +101,20 @@ export function extractFieldsFromOcrLines(lines: RecognizedTextLine[], reference
     if (codesNearTime.length === 2) {
       result.originAirport = codesNearTime[0];
       result.destinationAirport = codesNearTime[1];
+    }
+  }
+
+  if (!result.originAirport) {
+    const bareCodeLines: string[] = [];
+    for (const line of lines) {
+      const t = line.text.trim();
+      if (!BARE_CODE_LINE_PATTERN.test(t)) continue;
+      const code = t.toUpperCase();
+      if (lookupAirport(code) && !bareCodeLines.includes(code)) bareCodeLines.push(code);
+    }
+    if (bareCodeLines.length === 2) {
+      result.originAirport = bareCodeLines[0];
+      result.destinationAirport = bareCodeLines[1];
     }
   }
 

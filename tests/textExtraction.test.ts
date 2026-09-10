@@ -61,6 +61,29 @@ test("does not guess a route from 'CODE near clock time' when more than two dist
   assert.equal(result.destinationAirport, undefined);
 });
 
+test("extracts a route from two bare-code lines (real Asiana boarding-pass-exchange coupon layout)", () => {
+  // Real report: FROM/TO is a wide table whose cells OCR emits as separate lines in an
+  // inconsistent scan order — "MNL", a misrecognized arrow glyph, then "ICN" — nowhere
+  // near a time or on the same line as each other, so none of the other three route
+  // patterns can see them. Only a line with nothing else on it but the code counts.
+  const result = extractFieldsFromOcrLines([
+    line("FROM"),
+    line("TO"),
+    line("MNL"),
+    line("ナ"),
+    line("ICN"),
+    line("12:05"),
+  ]);
+  assert.equal(result.originAirport, "MNL");
+  assert.equal(result.destinationAirport, "ICN");
+});
+
+test("does not guess a route from bare-code lines when more than two distinct codes appear", () => {
+  const result = extractFieldsFromOcrLines([line("MNL"), line("NRT"), line("SFO")]);
+  assert.equal(result.originAirport, undefined);
+  assert.equal(result.destinationAirport, undefined);
+});
+
 test("extracts a labeled departure date from the following line", () => {
   const result = extractFieldsFromOcrLines([line("Departure"), line("12 SEP 2026")]);
   assert.equal(result.departureDate?.value, "2026-09-12");
