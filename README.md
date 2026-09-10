@@ -176,6 +176,20 @@ unversioned layout with a `ppocr_keys_v1.txt` file to the current `v1.1/` layout
 
 ## Known limitations / next steps
 
+- **A real camera photo's EXIF orientation is untested against a real example** (fixed
+  in 0.14.0, but not verified against a real photo — flagged proactively, not from a
+  bug report). `toCanvas` (`src/imageUtils.ts`) now passes
+  `{ imageOrientation: "from-image" }` to `createImageBitmap`, so a photo stored
+  sideways at the pixel level (with an EXIF tag saying how to display it upright) gets
+  corrected the same way a plain `<img>` tag already displays it — before this, the
+  option was left at its default, which ignores that tag, and that default has
+  actually differed across browser versions. Every real ticket tested so far has been
+  a screenshot or a PDF, neither of which carries camera EXIF metadata, so this path
+  was never actually exercised. This environment couldn't verify the fix against a
+  real EXIF-rotated photo (no network access to fetch a reference test image, no
+  EXIF-writing dependency to construct one) — if you test this with an actual phone
+  photo taken directly in portrait and it's still wrong, that's a real, fixture-worthy
+  report.
 - **Both the barcode subsystem and the OCR fallback have now run for real.** The barcode
   subsystem is verified end-to-end in a real browser via `npm run smoke` (encode ->
   decode -> BCBP parse -> country/date resolution, through the actual `zxing-wasm` WASM

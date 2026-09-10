@@ -1,8 +1,15 @@
 export type ImageInput = Blob | HTMLImageElement | HTMLCanvasElement | ImageBitmap;
 
 export async function toCanvas(input: ImageInput): Promise<HTMLCanvasElement> {
+  // imageOrientation defaults to ignoring a photo's EXIF rotation tag (and that
+  // default has differed across browser versions) -- every real ticket tested so far
+  // has been a screenshot or PDF, neither of which carries camera EXIF metadata, so
+  // this was never exercised. A real phone photo of a paper boarding pass commonly
+  // does carry it (stored sideways at the pixel level, with a tag saying how to
+  // display it upright); without "from-image" that photo would get OCR'd and
+  // barcode-scanned in its raw, possibly-rotated orientation.
   const source: HTMLImageElement | HTMLCanvasElement | ImageBitmap =
-    input instanceof Blob ? await createImageBitmap(input) : input;
+    input instanceof Blob ? await createImageBitmap(input, { imageOrientation: "from-image" }) : input;
 
   const width = source instanceof HTMLImageElement ? source.naturalWidth : source.width;
   const height = source instanceof HTMLImageElement ? source.naturalHeight : source.height;

@@ -5,6 +5,28 @@ every change that touches runtime behavior, so a bug report against a running in
 can always be tied back to the exact code that produced it (`ENGINE_VERSION` is exported
 and appears in every `TicketScanResult.provenance`, and in the demo's version badge).
 
+## 0.14.0
+
+- **Direct image uploads now honor a photo's EXIF orientation** (`src/imageUtils.ts`).
+  `toCanvas` calls `createImageBitmap(blob)` for any non-PDF input, and until now did
+  so with no options — `imageOrientation` then falls back to a default that ignores a
+  photo's EXIF rotation tag, and that default has actually differed across browser
+  versions. Every real ticket tested against this project so far has been a screenshot
+  or a PDF, neither of which carries camera EXIF metadata, so this was never
+  exercised — but a real phone photo of a paper boarding pass commonly *is* stored
+  sideways at the pixel level with an EXIF tag saying how to display it upright, and
+  without correcting for that it would get OCR'd and barcode-scanned in its raw,
+  possibly-rotated orientation. Fixed by passing `{ imageOrientation: "from-image" }`,
+  matching how a plain `<img>` tag already displays such a photo.
+  (PDF pages were never affected — `rasterizePdf`'s viewport already respects each
+  page's own declared rotation by construction, since `rotation` isn't overridden.)
+  **Not verified against a real EXIF-rotated photo** — this environment has no network
+  access to fetch a reference test image and no EXIF-writing dependency to construct
+  one, so this is applying the well-documented, standard fix rather than a
+  reproduce-then-fix from a real report. If you test this with an actual phone photo
+  taken directly in portrait (not a pre-rotated screenshot) and it's still wrong,
+  that's a real report — send it over.
+
 ## 0.13.0
 
 - **A single overnight long-haul leg could get wrongly assigned a `returnDate`
