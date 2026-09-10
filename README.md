@@ -97,7 +97,11 @@ console.log(result.fields);
 ```
 
 Hand `result.fields` straight to your teammate's eligibility service as JSON; nothing
-else in this package needs to reach a network boundary.
+else in this package needs to reach a network boundary. `scanTicket`'s full return
+value (`TicketScanResult`) is a plain JSON-serializable object — see
+`schema/ticket-scan-result.schema.json` for its formal JSON Schema (validated against
+both synthetic and real reported results; `src/types.ts` is still the source of truth
+if the two ever disagree) and `src/types.ts` for the annotated TypeScript.
 
 ## Regression fixtures
 

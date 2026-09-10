@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sebe67/ticket-scanner/schema/ticket-scan-result.schema.json",
+  "title": "TicketScanResult",
+  "description": "The JSON object scanTicket() resolves to. Mirrors src/types.ts exactly -- if these ever disagree, src/types.ts is the source of truth.",
+  "type": "object",
+  "required": ["fields", "provenance"],
+  "additionalProperties": false,
+  "properties": {
+    "fields": { "$ref": "#/$defs/TicketFields" },
+    "provenance": { "$ref": "#/$defs/TicketScanProvenance" },
+    "debug": {
+      "description": "Present only when ScanTicketOptions.includeDebugInfo is true. Not needed by a caller that only wants fields -- this exists for capturing regression fixtures from real reports.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/TicketScanPageDebugInfo" }
+    }
+  },
+  "$defs": {
+    "FieldSource": {
+      "type": "string",
+      "enum": ["barcode", "ocr", "derived"]
+    },
+    "StringField": {
+      "description": "A TicketField<string>.",
+      "type": "object",
+      "required": ["value", "confidence", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "string" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "source": { "$ref": "#/$defs/FieldSource" }
+      }
+    },
+    "DateField": {
+      "description": "A TicketField<string> whose value is an ISO 8601 date (YYYY-MM-DD).",
+      "type": "object",
+      "required": ["value", "confidence", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "string", "format": "date" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "source": { "$ref": "#/$defs/FieldSource" }
+      }
+    },
+    "IntegerField": {
+      "description": "A TicketField<number>, always a non-negative integer count.",
+      "type": "object",
+      "required": ["value", "confidence", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "integer", "minimum": 0 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "source": { "$ref": "#/$defs/FieldSource" }
+      }
+    },
+    "TripTypeField": {
+      "description": "A TicketField<\"DOMESTIC\" | \"INTERNATIONAL\">. Always source: \"derived\" -- never read from an on-ticket label.",
+      "type": "object",
+      "required": ["value", "confidence", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "string", "enum": ["DOMESTIC", "INTERNATIONAL"] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "source": { "const": "derived" }
+      }
+    },
+    "TicketFields": {
+      "description": "The exact field set for the insurance-eligibility use case. A key is omitted entirely (not present, not null) when nothing found a value for it -- 'no value beats a wrong value.' Never assume a key exists; always check for its presence before reading .value.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "originCountry": { "$ref": "#/$defs/StringField", "description": "Full country name (e.g. \"Philippines\"), resolved from the departure airport's IATA code." },
+        "destinationCountry": { "$ref": "#/$defs/StringField", "description": "Full country name, resolved from the arrival airport's IATA code." },
+        "departureDate": { "$ref": "#/$defs/DateField" },
+        "returnDate": { "$ref": "#/$defs/DateField", "description": "Present only for a round-trip itinerary." },
+        "adults": { "$ref": "#/$defs/IntegerField" },
+        "children": { "$ref": "#/$defs/IntegerField" },
+        "tripType": { "$ref": "#/$defs/TripTypeField" }
+      }
+    },
+    "TicketScanPageProvenance": {
+      "type": "object",
+      "required": ["imageHash", "barcodeFound", "rawOcrText"],
+      "additionalProperties": false,
+      "properties": {
+        "imageHash": { "type": "string", "description": "SHA-256 of the page's rendered PNG bytes." },
+        "barcodeFound": { "type": "boolean" },
+        "barcodeFormat": { "type": "string", "description": "e.g. \"PDF417\", \"Aztec\", \"QRCode\". Present only when barcodeFound is true." },
+        "rawOcrText": { "type": "string", "description": "Full OCR text for this page, newline-joined in reading order." }
+      }
+    },
+    "TicketScanProvenance": {
+      "type": "object",
+      "required": ["inputKind", "engineVersion", "pages"],
+      "additionalProperties": false,
+      "properties": {
+        "inputKind": { "type": "string", "enum": ["image", "pdf"] },
+        "engineVersion": { "type": "string", "description": "e.g. \"ticket-scanner/bcbp+ppocrv5-mobile-onnxruntime-web@0.15.0\" -- ties a result back to the exact code that produced it." },
+        "pages": {
+          "type": "array",
+          "description": "One entry per page -- always length 1 for a plain image, one per page for a PDF.",
+          "items": { "$ref": "#/$defs/TicketScanPageProvenance" }
+        }
+      }
+    },
+    "RecognizedTextLine": {
+      "type": "object",
+      "required": ["text", "confidence", "boundingBox"],
+      "additionalProperties": false,
+      "properties": {
+        "text": { "type": "string" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "boundingBox": {
+          "type": "array",
+          "description": "[x1, y1, x2, y2] in original-image pixel coordinates.",
+          "items": { "type": "number" },
+          "minItems": 4,
+          "maxItems": 4
+        }
+      }
+    },
+    "DecodedBarcode": {
+      "type": "object",
+      "required": ["text", "format"],
+      "additionalProperties": false,
+      "properties": {
+        "text": { "type": "string" },
+        "format": { "type": "string" }
+      }
+    },
+    "TicketScanPageDebugInfo": {
+      "type": "object",
+      "required": ["lines", "barcodes"],
+      "additionalProperties": false,
+      "properties": {
+        "lines": { "type": "array", "items": { "$ref": "#/$defs/RecognizedTextLine" } },
+        "barcodes": { "type": "array", "items": { "$ref": "#/$defs/DecodedBarcode" } }
+      }
+    }
+  }
+}
