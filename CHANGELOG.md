@@ -5,6 +5,43 @@ every change that touches runtime behavior, so a bug report against a running in
 can always be tied back to the exact code that produced it (`ENGINE_VERSION` is exported
 and appears in every `TicketScanResult.provenance`, and in the demo's version badge).
 
+## 0.8.0
+
+Fixed a real CheapOair booking-confirmation report: a one-way domestic flight (no
+return leg at all) came back with a wrong `departureDate` (`2026-03-20`) *and* a
+spurious `returnDate` (`2019-03-20`) — both wrong, and a return date that shouldn't
+exist at all.
+
+- **`findFreeTextDateMatch`'s `monthDayYear` pattern now accepts zero separators
+  between month and day** (`src/dateParsing.ts`), mirroring 0.7.0's fix to
+  `dayMonthYear`'s day-year separator. This ticket's same physical date was OCR'd twice
+  with inconsistent spacing: `"Wed, Mar20,2019"` (no separator, printed once as the
+  departure header) and `"Wed, Mar 20, 2019"` (spaced, printed again next to the arrival
+  details, since it's a same-day flight). The spaced line already resolved correctly
+  (`2019-03-20`); the zero-separator line failed `monthDayYear`'s separator requirement
+  and fell through to the yearless-date fallback, inferring a year near "now"
+  (`2026-03-20`) instead of using the real, explicit `2019` printed right there. Because
+  the two lines then resolved to *different* string values, the ambiguous-date-pool
+  fallback treated them as two distinct dates instead of deduplicating them as the same
+  one — assigning the wrong first date as departure and the wrong second date as a
+  return that doesn't exist on this one-way ticket. With the separator loosened, both
+  lines now resolve to the identical `2019-03-20`, collapse into a single deduplicated
+  date, and the fallback's single-date branch correctly assigns only a `departureDate`.
+- **`fixtures/` and the fixture test loader now support asserting a field is absent**,
+  not just asserting its value (`tests/fixtureTypes.ts`, `tests/fixtures.test.ts`) — set
+  `expected.departureDate`/`returnDate` to `null` (as opposed to omitting the key, which
+  asserts nothing). Needed for this fixture: the actual defect was as much "a returnDate
+  appeared that shouldn't have" as it was "departureDate had the wrong value," and the
+  fixture format previously had no way to lock in the first half of that.
+
+This scanner intentionally does not validate that a departure date is in the future, or
+otherwise judge dates for plausibility — it passes through whatever's actually printed.
+Whether/how to reject a ticket based on date plausibility is left to the downstream
+eligibility-matching service.
+
+Adds a fourth real regression fixture
+(`fixtures/2026-09-10-cheapoair-zero-separator-monthdayyear-and-duplicate-date.fixture.json`).
+
 ## 0.7.0
 
 Two compounding fixes from a real Philippine Airlines e-ticket PDF report: barcode

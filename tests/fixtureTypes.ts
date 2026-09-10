@@ -25,12 +25,17 @@ export interface OcrLinesFixture {
    * suite runs. Not needed when the ticket's date already includes an explicit year.
    */
   referenceDate?: string;
-  /** Only the fields this fixture is actually asserting — omit any field the report didn't concern. */
+  /**
+   * Only the fields this fixture is actually asserting — omit any field the report
+   * didn't concern. `departureDate`/`returnDate` also accept `null` to assert the field
+   * comes back *absent* (e.g. a one-way ticket that must not get a guessed returnDate) —
+   * distinct from omitting the key, which asserts nothing about it either way.
+   */
   expected: {
     originAirport?: string;
     destinationAirport?: string;
-    departureDate?: string;
-    returnDate?: string;
+    departureDate?: string | null;
+    returnDate?: string | null;
     adults?: number;
     children?: number;
   };

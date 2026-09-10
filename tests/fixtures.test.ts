@@ -41,8 +41,10 @@ for (const { file, fixture } of fixtures) {
 
       if (expected.originAirport !== undefined) assert.equal(result.originAirport, expected.originAirport);
       if (expected.destinationAirport !== undefined) assert.equal(result.destinationAirport, expected.destinationAirport);
-      if (expected.departureDate !== undefined) assert.equal(result.departureDate?.value, expected.departureDate);
-      if (expected.returnDate !== undefined) assert.equal(result.returnDate?.value, expected.returnDate);
+      if (expected.departureDate === null) assert.equal(result.departureDate, undefined);
+      else if (expected.departureDate !== undefined) assert.equal(result.departureDate?.value, expected.departureDate);
+      if (expected.returnDate === null) assert.equal(result.returnDate, undefined);
+      else if (expected.returnDate !== undefined) assert.equal(result.returnDate?.value, expected.returnDate);
       if (expected.adults !== undefined) assert.equal(result.adults?.value, expected.adults);
       if (expected.children !== undefined) assert.equal(result.children?.value, expected.children);
     } else {

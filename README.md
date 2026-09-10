@@ -243,6 +243,21 @@ unversioned layout with a `ppocr_keys_v1.txt` file to the current `v1.1/` layout
   excludes a date match that has a colon earlier in the same line (a general signal of
   "Label: date" metadata, not the bare flight-date table cells) instead of bailing out
   entirely. See the comment above `datesInOrder` in `src/textExtraction.ts`.
+- **A duplicate date OCR'd with inconsistent spacing could resolve to two different
+  values and get treated as departure+return instead of deduplicated** (fixed in 0.8.0,
+  from a real CheapOair one-way booking confirmation). The same physical date was
+  printed twice on the ticket (once as a departure header, once next to arrival details,
+  since it's a same-day flight) and OCR'd with different spacing: `"Mar20,2019"` (no
+  separator) vs. `"Mar 20, 2019"` (spaced). `monthDayYear` required a separator between
+  month and day, so the unspaced line fell through to the yearless-date fallback and
+  guessed a year near "now" instead of using its own explicit, correctly-printed year —
+  producing a *different* string than the spaced line's correct value, which meant the
+  two couldn't dedupe and got assigned as departure/return on a ticket that's actually
+  one-way. The separator is now optional there too (same fix shape as 0.7.0's
+  `dayMonthYear` change for PAL's `"01Jun2026"`). Also worth noting explicitly: this
+  scanner does not validate that a departure date is in the future or otherwise judge
+  date plausibility — it passes through whatever's printed, and rejecting an
+  implausible date is left to the downstream eligibility-matching service.
 - **Multi-leg BCBP barcodes only yield their first leg.** BCBP encodes additional legs
   (e.g. a connecting flight) via variable-length conditional data this v1 parser doesn't
   walk — see the comment in `src/bcbp.ts`. A round trip is virtually always two separate

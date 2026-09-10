@@ -100,9 +100,10 @@ export interface DateMatch {
  * "SEP 12, 2026", "2026-09-12", "09/12/2026" and "12/09/2026" (the numeric-slash case
  * is inherently ambiguous between month-first/day-first; both orderings are tried and
  * only kept if exactly one parses to a valid calendar date, otherwise it's rejected as
- * ambiguous rather than guessed), "01Jun2026" (zero separators at all — a real
- * Philippine Airlines e-ticket receipt prints dates exactly this way) — and, failing
- * all of those, a bare day+month with no year at all ("17SEP", "SEP 17"), common on
+ * ambiguous rather than guessed), "01Jun2026" and "Mar20,2019" (zero separators between
+ * day and month, or month and day, respectively — a real Philippine Airlines e-ticket
+ * receipt and a real CheapOair booking confirmation each print dates exactly this way)
+ * — and, failing all of those, a bare day+month with no year at all ("17SEP", "SEP 17"), common on
  * boarding-pass mockups/templates that omit the year, with the year inferred the same
  * way `resolveBcbpJulianDate` infers one for a BCBP barcode's yearless day-of-year.
  */
@@ -127,7 +128,12 @@ export function findFreeTextDateMatch(text: string, referenceDate: Date = new Da
     if (month && isValidCalendarDate(year, month, day)) return { value: toIsoDate(year, month, day), index: dayMonthYear.index! };
   }
 
-  const monthDayYear = t.match(/\b([A-Za-z]{3,9})[\s.-]+(\d{1,2})[\s,.-]+(\d{2,4})\b/);
+  // Separator between month and day is optional (`*` not `+`) for the same reason as
+  // dayMonthYear above: a real CheapOair booking confirmation prints "Mar20,2019" with
+  // nothing between the month name and the day. The day-year separator stays required
+  // (`+`) — without it, this would start swallowing plain digit runs after any month
+  // name (see the false-positive analysis in the comment history for why that's unsafe).
+  const monthDayYear = t.match(/\b([A-Za-z]{3,9})[\s.-]*(\d{1,2})[\s,.-]+(\d{2,4})\b/);
   if (monthDayYear) {
     const month = MONTHS[monthDayYear[1].toLowerCase()];
     const day = Number(monthDayYear[2]);
