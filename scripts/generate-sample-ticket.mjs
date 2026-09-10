@@ -1,10 +1,12 @@
 /**
- * Generates sample-tickets/boarding-pass-sample.png: a synthetic (not a real airline's)
- * boarding pass image with a genuine, scannable PDF417 barcode encoding valid BCBP data,
- * for testing this project's demo (`npm run demo`) without needing a real ticket. The
+ * Generates sample-tickets/boarding-pass-sample*.png: a synthetic (not a real airline's)
+ * boarding pass image with a genuine, scannable barcode encoding valid BCBP data, for
+ * testing this project's demo (`npm run demo`) without needing a real ticket. The
  * flight date is always "7 days from today" so the sample never goes stale.
  *
- * Usage: node scripts/generate-sample-ticket.mjs
+ * Usage: node scripts/generate-sample-ticket.mjs [PDF417|Aztec|QRCode]
+ * Defaults to PDF417 (a paper boarding pass). Aztec/QRCode simulate a mobile/wallet
+ * boarding pass instead — same BCBP payload, different symbology and layout.
  */
 import { build } from "esbuild";
 import { chromium } from "playwright";
@@ -57,6 +59,13 @@ const flightDate = new Date();
 flightDate.setUTCDate(flightDate.getUTCDate() + 7);
 const displayDate = `${flightDate.getUTCDate()} ${MONTH_NAMES[flightDate.getUTCMonth()]} ${flightDate.getUTCFullYear()}`;
 
+const VALID_FORMATS = ["PDF417", "Aztec", "QRCode"];
+const format = process.argv[2] ?? "PDF417";
+if (!VALID_FORMATS.includes(format)) {
+  console.error(`Unknown format "${format}" — expected one of: ${VALID_FORMATS.join(", ")}`);
+  process.exit(1);
+}
+
 const params = {
   passengerName: "DELACRUZ/JUAN",
   pnr: "ABC123",
@@ -71,6 +80,7 @@ const params = {
   seat: "14A",
   gate: "B05",
   boardingTime: "17:35",
+  format,
 };
 
 const browser = await chromium.launch();
@@ -83,10 +93,12 @@ try {
 
   const outDir = path.join(root, "sample-tickets");
   await mkdir(outDir, { recursive: true });
-  const outPath = path.join(outDir, "boarding-pass-sample.png");
+  const suffix = format === "PDF417" ? "" : `-${format.toLowerCase()}`;
+  const outPath = path.join(outDir, `boarding-pass-sample${suffix}.png`);
   await writeFile(outPath, Buffer.from(base64Png, "base64"));
 
   console.log(`Wrote ${outPath}`);
+  console.log(`Format: ${format}`);
   console.log(`Route: ${params.fromAirport} -> ${params.toAirport}, flight ${params.carrier}${params.flightNumber}, date ${params.displayDate}`);
 
   await page.close();

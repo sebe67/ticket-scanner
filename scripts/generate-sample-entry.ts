@@ -26,6 +26,8 @@ interface SampleParams {
   seat: string;
   gate: string;
   boardingTime: string;
+  /** "PDF417" (paper boarding passes) or "Aztec"/"QRCode" (mobile/wallet boarding passes) — see src/barcode.ts's decodeBarcodes, which reads all three. */
+  format: "PDF417" | "Aztec" | "QRCode";
 }
 
 function buildBcbpHeader(p: SampleParams): string {
@@ -49,19 +51,27 @@ function buildBcbpHeader(p: SampleParams): string {
 
 /**
  * Renders a synthetic (clearly not a real airline's) boarding pass with a genuine,
- * scannable PDF417 barcode encoding valid BCBP data matching the printed fields — for
+ * scannable barcode encoding valid BCBP data matching the printed fields — for
  * exercising both the barcode-first path and the OCR fallback (the printed IATA codes
  * let route matching succeed even if the barcode region were cropped out or damaged).
+ *
+ * `format` picks PDF417 (a wide rectangle, how paper boarding passes are printed) or
+ * Aztec/QRCode (square, how mobile/wallet boarding passes are typically encoded) — all
+ * three are read by src/barcode.ts's decodeBarcodes, but until this was added only the
+ * PDF417 path had ever been exercised against a generated (let alone real) image.
  */
 (window as unknown as Record<string, unknown>).__generateSampleTicket = async (params: SampleParams) => {
   const bcbpText = buildBcbpHeader(params);
-  const written = await writeBarcodeToImageFile(bcbpText, { format: "PDF417", width: 380, height: 110, margin: 8 });
+  const isSquareFormat = params.format !== "PDF417";
+  const barcodeWidth = isSquareFormat ? 300 : 380;
+  const barcodeHeight = isSquareFormat ? 300 : 110;
+  const written = await writeBarcodeToImageFile(bcbpText, { format: params.format, width: barcodeWidth, height: barcodeHeight, margin: 8 });
   if (!written.image) throw new Error(`writeBarcodeToImageFile failed: ${written.error}`);
   const barcodeImg = await blobToImage(written.image);
 
   const canvas = document.createElement("canvas");
   canvas.width = 1000;
-  canvas.height = 600;
+  canvas.height = isSquareFormat ? 780 : 600;
   const ctx = canvas.getContext("2d")!;
 
   ctx.fillStyle = "#ffffff";
@@ -71,7 +81,7 @@ function buildBcbpHeader(p: SampleParams): string {
   ctx.fillRect(0, 0, canvas.width, 90);
   ctx.fillStyle = "#ffffff";
   ctx.font = "bold 36px sans-serif";
-  ctx.fillText("BOARDING PASS", 40, 58);
+  ctx.fillText(isSquareFormat ? "MOBILE BOARDING PASS" : "BOARDING PASS", 40, 58);
   ctx.font = "20px sans-serif";
   ctx.fillText("SAMPLE AIRLINE — TEST DATA ONLY, NOT A REAL TICKET", 40, 82);
 
@@ -97,10 +107,11 @@ function buildBcbpHeader(p: SampleParams): string {
   y += lh;
   ctx.fillText(`${params.fromAirport} - ${params.toAirport}`, col1, y);
 
-  ctx.drawImage(barcodeImg, 40, 430, 380, 110);
+  const barcodeX = isSquareFormat ? (canvas.width - barcodeWidth) / 2 : 40;
+  ctx.drawImage(barcodeImg, barcodeX, 430, barcodeWidth, barcodeHeight);
   ctx.font = "14px monospace";
   ctx.fillStyle = "#555555";
-  ctx.fillText("PDF417 — decodable by this project's barcode subsystem", 40, 560);
+  ctx.fillText(`${params.format} — decodable by this project's barcode subsystem`, 40, 430 + barcodeHeight + 30);
 
   const outBlob: Blob = await new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png")

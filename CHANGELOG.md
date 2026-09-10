@@ -5,6 +5,28 @@ every change that touches runtime behavior, so a bug report against a running in
 can always be tied back to the exact code that produced it (`ENGINE_VERSION` is exported
 and appears in every `TicketScanResult.provenance`, and in the demo's version badge).
 
+## 0.11.0
+
+- **The barcode subsystem's Aztec and QRCode paths are now actually exercised, not
+  just declared.** Every real ticket tested against this project so far has used a
+  printed PDF417 barcode (paper boarding passes); `decodeBarcodes` (`src/barcode.ts`)
+  has requested all three formats (`PDF417`, `Aztec`, `QRCode`) since the very first
+  version, matching the architecture decision to support both paper and mobile/wallet
+  boarding passes, but Aztec/QRCode had never actually been round-tripped against a
+  real image — only PDF417 had, in `npm run smoke`.
+  - `npm run smoke` (`scripts/smoke-test.mjs`/`smoke-test-entry.ts`) now runs its full
+    encode -> decode -> BCBP parse -> country/date resolution round trip for all three
+    formats, not just PDF417. All three pass.
+  - `npm run generate-sample:aztec` / `npm run generate-sample:qr`
+    (`scripts/generate-sample-ticket.mjs`/`generate-sample-entry.ts`) generate a
+    "mobile boarding pass" sample image — same synthetic, clearly-labeled BCBP data as
+    `npm run generate-sample`'s existing PDF417 one, just encoded as a square
+    Aztec/QRCode symbol instead, for exercising the demo against something closer to a
+    real phone-wallet screenshot.
+- No scanning behavior changed for the existing PDF417 path — this only adds test
+  coverage for the two formats that were already declared-supported but untested.
+  `ENGINE_VERSION` bumps anyway, per this changelog's own "bump together" rule.
+
 ## 0.10.0
 
 - **Route matching now handles a fourth real layout: airport codes split across

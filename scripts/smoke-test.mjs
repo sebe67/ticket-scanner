@@ -92,25 +92,30 @@ try {
   const bcbpText = buildBcbpHeader({ from: "MNL", to: "NRT", julianDay: dayOfYear(today) });
   const expectedDate = today.toISOString().slice(0, 10);
 
-  const r = await page.evaluate((text) => window.__runBarcodePipelineTest(text), bcbpText);
+  // All three formats decodeBarcodes actually reads (src/barcode.ts) — PDF417 for a
+  // paper boarding pass, Aztec/QRCode for a mobile/wallet one.
+  for (const format of ["PDF417", "Aztec", "QRCode"]) {
+    const r = await page.evaluate(([text, fmt]) => window.__runBarcodePipelineTest(text, fmt), [bcbpText, format]);
 
-  const checks = [
-    ["a barcode symbol was decoded", r.decodedCount >= 1],
-    ["decoded format is PDF417", r.decodedFormats.includes("PDF417")],
-    ["decoded text parsed as BCBP", r.parsed !== null],
-    ["round-tripped fromAirport === MNL", r.parsed?.firstLeg?.fromAirport === "MNL"],
-    ["round-tripped toAirport === NRT", r.parsed?.firstLeg?.toAirport === "NRT"],
-    ["origin country resolved to Philippines", r.originLookup?.country === "Philippines"],
-    ["destination country resolved to Japan", r.destinationLookup?.country === "Japan"],
-    ["departure date resolved correctly", r.resolvedDepartureDate === expectedDate],
-  ];
+    const checks = [
+      ["a barcode symbol was decoded", r.decodedCount >= 1],
+      [`decoded format is ${format}`, r.decodedFormats.includes(format)],
+      ["decoded text parsed as BCBP", r.parsed !== null],
+      ["round-tripped fromAirport === MNL", r.parsed?.firstLeg?.fromAirport === "MNL"],
+      ["round-tripped toAirport === NRT", r.parsed?.firstLeg?.toAirport === "NRT"],
+      ["origin country resolved to Philippines", r.originLookup?.country === "Philippines"],
+      ["destination country resolved to Japan", r.destinationLookup?.country === "Japan"],
+      ["departure date resolved correctly", r.resolvedDepartureDate === expectedDate],
+    ];
 
-  console.log(`BCBP text: "${bcbpText}"`);
-  console.log(JSON.stringify(r, null, 2));
-  console.log();
-  for (const [name, pass] of checks) {
-    console.log(`${pass ? "PASS" : "FAIL"}: ${name}`);
-    if (!pass) exitCode = 1;
+    console.log(`\n=== ${format} ===`);
+    console.log(`BCBP text: "${bcbpText}"`);
+    console.log(JSON.stringify(r, null, 2));
+    console.log();
+    for (const [name, pass] of checks) {
+      console.log(`${pass ? "PASS" : "FAIL"}: ${name}`);
+      if (!pass) exitCode = 1;
+    }
   }
   if (logs.length) console.log("\nbrowser logs:\n" + logs.join("\n"));
   console.log(exitCode === 0 ? "\nsmoke test: ALL CHECKS PASSED" : "\nsmoke test: SOME CHECKS FAILED");

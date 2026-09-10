@@ -122,14 +122,20 @@ date is always "7 days from today" so it never goes stale. The generator's outpu
 verified against the real decode/parse/lookup pipeline before being committed (round-trips
 back to `MNL`/`NRT`/Philippines/Japan correctly).
 
+`npm run generate-sample:aztec` / `npm run generate-sample:qr` generate the same
+document but as a "mobile boarding pass" — square Aztec/QRCode barcodes instead of
+PDF417, the way a phone-wallet boarding pass is typically encoded, since a real one of
+those hadn't been tested against at all before 0.11.0.
+
 `npm run smoke` is an automated check, not a manual demo: it drives real headless
-Chromium (via Playwright) through an actual round trip of the barcode subsystem —
-encodes a test BCBP payload to a genuine PDF417 image, decodes it back, parses it, and
-resolves country/date — exercising the real `zxing-wasm` WASM runtime rather than just
-the pure-logic unit tests in `tests/`. It deliberately doesn't exercise the OCR fallback
-path, since that needs a real network fetch of the model weights; run `npm run demo`
-with a real ticket for that instead. Run `npm run smoke` after any change that touches
-`src/barcode.ts`, `src/bcbp.ts`, `src/dateParsing.ts`, or `src/airportLookup.ts`.
+Chromium (via Playwright) through an actual round trip of the barcode subsystem for
+all three formats `decodeBarcodes` reads (PDF417, Aztec, QRCode) — encodes a test BCBP
+payload, decodes it back, parses it, and resolves country/date — exercising the real
+`zxing-wasm` WASM runtime rather than just the pure-logic unit tests in `tests/`. It
+deliberately doesn't exercise the OCR fallback path, since that needs a real network
+fetch of the model weights; run `npm run demo` with a real ticket for that instead. Run
+`npm run smoke` after any change that touches `src/barcode.ts`, `src/bcbp.ts`,
+`src/dateParsing.ts`, or `src/airportLookup.ts`.
 
 ## Setup
 
