@@ -5,6 +5,28 @@ every change that touches runtime behavior, so a bug report against a running in
 can always be tied back to the exact code that produced it (`ENGINE_VERSION` is exported
 and appears in every `TicketScanResult.provenance`, and in the demo's version badge).
 
+## 0.13.0
+
+- **A single overnight long-haul leg could get wrongly assigned a `returnDate`
+  that's actually just its own arrival day** (`src/textExtraction.ts`), fixed from a
+  real Singapore Airlines report (one-way SIN to LHR). Departing SIN 23:25 and landing
+  LHR 05:55 crosses midnight, so the ticket prints two different calendar dates (02 Jan
+  departure, 03 Jan arrival) for one single flight — the same shape ("exactly two
+  unlabeled dates") the fallback expects for a genuine departure+return pair, so it
+  guessed wrong. What actually distinguishes the two: a real round trip's return leg
+  reverses the route in its own text (see the JNB↔CPT fixture: `"Cape Town (CPT) to
+  Johannesburg (JNB)"`), while this ticket only ever mentions SIN→LHR once; and this
+  leg's destination has a same-line local time *earlier* in the day than its origin's —
+  exactly what crossing midnight means. `returnDate` is now suppressed only when all
+  three signals agree: the two dates are exactly one day apart, and both the resolved
+  origin and destination have a recorded same-line time, and the destination's time is
+  earlier than the origin's. A genuine round trip that happens to be a quick one-night
+  trip (its own separate, non-overnight legs) is unaffected — see the new "still
+  assigns a returnDate" unit test.
+
+Adds a seventh real regression fixture
+(`fixtures/2026-09-10-singapore-airlines-overnight-leg-wrongly-treated-as-return.fixture.json`).
+
 ## 0.12.0
 
 - **Route matching's two "code isn't adjacent to the other code" fallbacks

@@ -1,0 +1,26 @@
+{
+  "kind": "ocrLines",
+  "description": "A real Singapore Airlines boarding pass (one-way SIN to LHR, a long-haul overnight flight) came back with a returnDate that shouldn't exist at all. Departing SIN 23:25 and landing LHR 05:55 crosses midnight, so the ticket prints two different calendar dates (02 Jan departure, 03 Jan arrival) for what is a single flight leg -- the same shape the unlabeled-date fallback expects for a genuine departure+return pair (see the JNB<->CPT fixture), so it wrongly assigned the arrival day as returnDate. What actually distinguishes a same-leg overnight arrival from a real round trip: a real round trip's return leg reverses the route in its own text (the JNB<->CPT fixture's return leg literally says \"Cape Town (CPT) to Johannesburg (JNB)\"), while this ticket only ever mentions the SIN->LHR direction once; and this leg's destination (LHR) has a same-line local time earlier in the day than its origin (SIN) -- exactly what crossing midnight means, whereas JNB<->CPT's two legs each keep their own times within one day and aren't recorded as code-adjacent times at all. Fixed by requiring all three signals together before suppressing returnDate: the two dates are exactly one day apart, and both the resolved origin and destination have a recorded same-line time, and the destination's time is earlier than the origin's.",
+  "reportedEngineVersion": "ticket-scanner/bcbp+ppocrv5-mobile-onnxruntime-web@0.12.0",
+  "referenceDate": "2026-09-10T12:00:00Z",
+  "lines": [
+    { "text": "SQ 322· Airbus A380-800", "confidence": 0.9628396967182988, "boundingBox": [18.9, 32.4, 332.1, 60.9] },
+    { "text": "Economy", "confidence": 0.9992696472576686, "boundingBox": [366.2, 30.0, 483.8, 67.2] },
+    { "text": "02 Jan (Sat)", "confidence": 0.9791178603967031, "boundingBox": [15.9, 100.4, 164.5, 136.7] },
+    { "text": "03 Jan (Sun)", "confidence": 0.9683887809514999, "boundingBox": [371.7, 100.3, 527.2, 136.8] },
+    { "text": "SIN 23:25", "confidence": 0.9959068761931525, "boundingBox": [18.0, 146.2, 202.4, 185.2] },
+    { "text": "LHR 05:55", "confidence": 0.9928285214636061, "boundingBox": [372.5, 144.8, 575.2, 185.6] },
+    { "text": "0", "confidence": 0.6221914291381836, "boundingBox": [229.1, 157.4, 242.8, 171.0] },
+    { "text": "0", "confidence": 0.1882704645395279, "boundingBox": [332.3, 157.2, 347.3, 171.2] },
+    { "text": "Singapore", "confidence": 0.9995613098144531, "boundingBox": [16.0, 198.4, 150.7, 235.3] },
+    { "text": "London", "confidence": 0.9993850886821747, "boundingBox": [372.4, 199.1, 473.9, 230.3] },
+    { "text": "Changi", "confidence": 0.9987824559211731, "boundingBox": [15.0, 234.7, 95.2, 268.8] },
+    { "text": "Terminal 3", "confidence": 0.9976804912090301, "boundingBox": [17.2, 267.8, 124.2, 292.8] }
+  ],
+  "expected": {
+    "originAirport": "SIN",
+    "destinationAirport": "LHR",
+    "departureDate": "2027-01-02",
+    "returnDate": null
+  }
+}

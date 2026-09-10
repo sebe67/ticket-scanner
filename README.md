@@ -223,6 +223,15 @@ unversioned layout with a `ppocr_keys_v1.txt` file to the current `v1.1/` layout
   same calendar year depending on scan timing, making the second-listed date resolve
   "earlier" than the first. See the comment above `datesInOrder` in
   `src/textExtraction.ts`.
+- **A single overnight leg's own arrival day was wrongly assigned as `returnDate`**
+  (fixed in 0.13.0, from a real Singapore Airlines one-way SIN→LHR report): a
+  long-haul flight that crosses midnight prints two different calendar dates for one
+  flight, the same shape the fallback expects for a genuine departure+return pair. Now
+  suppressed only when all three signals agree: the two dates are exactly one day
+  apart, the resolved origin and destination both have a recorded same-line local
+  time, and the destination's time is earlier in the day than the origin's (i.e.
+  crossing midnight) — a real round trip that happens to be a quick one-night trip is
+  unaffected, since its own legs won't share that exact combination.
 - **Per-line OCR confidence was previously wrong — fixed in 0.6.0.** An earlier version
   of this doc claimed the ~0.0001-range confidence values were just large-vocabulary
   softmax deflation and "not a bug." That explanation was wrong: it was a real

@@ -26,7 +26,7 @@ const PAREN_CODE_PATTERN = /\(([A-Z]{3})\)/g;
  * second destination — the same "document order, no value beats a wrong one" approach
  * already used for the unlabeled-date fallback below.
  */
-const CODE_NEAR_TIME_PATTERN = /\b([A-Z]{3})\b[\s-]*\d{1,2}:\d{2}\s*(?:am|pm)?\b/i;
+const CODE_NEAR_TIME_PATTERN = /\b([A-Z]{3})\b[\s-]*(\d{1,2}):(\d{2})\s*(am|pm)?\b/i;
 /**
  * A real Asiana boarding-pass-exchange coupon lays FROM/TO out as a wide table whose
  * cells the OCR emits as separate lines in an inconsistent scan order — "MNL", a
@@ -53,6 +53,26 @@ function findDateNear(lines: RecognizedTextLine[], labelIndex: number, reference
   return null;
 }
 
+/** Minutes since midnight, resolving 12-hour "am"/"pm" (case-insensitive) or treating the hour as already 24-hour when absent. Returns null for an out-of-range hour/minute. */
+function timeOfDayMinutes(hourStr: string, minuteStr: string, ampm?: string): number | null {
+  let hour = Number(hourStr);
+  const minute = Number(minuteStr);
+  if (ampm) {
+    const isPM = ampm.toLowerCase() === "pm";
+    if (hour === 12) hour = isPM ? 12 : 0;
+    else if (isPM) hour += 12;
+  }
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
+/** Whole calendar days between two "YYYY-MM-DD" strings (isoB minus isoA), UTC. */
+function daysBetweenIsoDates(isoA: string, isoB: string): number {
+  const [ay, am, ad] = isoA.split("-").map(Number);
+  const [by, bm, bd] = isoB.split("-").map(Number);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
+}
+
 export interface OcrExtractedFields {
   originAirport?: string;
   destinationAirport?: string;
@@ -64,6 +84,19 @@ export interface OcrExtractedFields {
 
 export function extractFieldsFromOcrLines(lines: RecognizedTextLine[], referenceDate: Date = new Date()): OcrExtractedFields {
   const result: OcrExtractedFields = {};
+
+  // Every table-known code's own local time-of-day, wherever a code and a time sit on
+  // the same line (independent of which route pattern below ends up resolving the
+  // route) — used later to tell a same-leg overnight arrival apart from a genuine
+  // return leg, see the unlabeled-date fallback's comment.
+  const codeTimes = new Map<string, number>();
+  for (const line of lines) {
+    const match = line.text.trim().match(CODE_NEAR_TIME_PATTERN);
+    if (!match) continue;
+    const code = match[1].toUpperCase();
+    const minutes = timeOfDayMinutes(match[2], match[3], match[4]);
+    if (minutes !== null && lookupAirport(code)) codeTimes.set(code, minutes);
+  }
 
   // Route: first line whose two candidate 3-letter codes are both recognized airports.
   for (const line of lines) {
@@ -180,7 +213,29 @@ export function extractFieldsFromOcrLines(lines: RecognizedTextLine[], reference
       result.departureDate = { value: datesInOrder[0], confidence: 0.6, source: "ocr" };
     } else if (datesInOrder.length === 2) {
       result.departureDate = { value: datesInOrder[0], confidence: 0.55, source: "ocr" };
-      if (!returnDate) result.returnDate = { value: datesInOrder[1], confidence: 0.55, source: "ocr" };
+      // A real Singapore Airlines report: a single overnight long-haul leg (SIN 23:25
+      // -> LHR 05:55, landing the next calendar day) has exactly this same shape --
+      // two unlabeled dates, one day apart -- as a genuine short round trip, and was
+      // wrongly assigned a "returnDate" that's actually just the outbound leg's own
+      // arrival day. What actually distinguishes the two: a real round trip's second
+      // leg reverses the route (see the JNB<->CPT fixture, where the return leg's own
+      // text literally says "Cape Town (CPT) to Johannesburg (JNB)") and its dates
+      // aren't usually exactly one day apart; a single leg that merely crosses
+      // midnight never reverses the route, and its origin's local departure time is
+      // *later in the day* than its destination's local arrival time (that's what
+      // crossing midnight means). Suppress returnDate only when both signals agree:
+      // the two dates are exactly one day apart, and the resolved route's origin/
+      // destination each have a same-line time recorded with origin later than
+      // destination -- otherwise a real round trip that happens to be a quick
+      // overnight trip (own separate, non-overnight legs) is unaffected.
+      const originTime = result.originAirport ? codeTimes.get(result.originAirport) : undefined;
+      const destinationTime = result.destinationAirport ? codeTimes.get(result.destinationAirport) : undefined;
+      const isSameLegOvernightArrival =
+        daysBetweenIsoDates(datesInOrder[0], datesInOrder[1]) === 1 &&
+        originTime !== undefined &&
+        destinationTime !== undefined &&
+        destinationTime < originTime;
+      if (!returnDate && !isSameLegOvernightArrival) result.returnDate = { value: datesInOrder[1], confidence: 0.55, source: "ocr" };
     }
   }
 

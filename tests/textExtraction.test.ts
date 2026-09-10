@@ -143,6 +143,41 @@ test("does not guess when three or more unlabeled dates are present", () => {
   assert.equal(result.returnDate, undefined);
 });
 
+test("does not treat an overnight leg's own arrival date as a returnDate (real Singapore Airlines SIN-LHR report)", () => {
+  // Real report: a single one-way overnight long-haul leg (depart SIN 23:25, land LHR
+  // 05:55 the next calendar day) has the same shape as a genuine round trip -- two
+  // unlabeled dates, one day apart -- and used to be wrongly assigned a "returnDate"
+  // that was actually just the outbound leg's own arrival day. What distinguishes this
+  // from a real round trip: the route is only ever mentioned once (never reversed, see
+  // the JNB<->CPT fixture for what a real return leg's text looks like) and the
+  // destination's own local time is earlier in the day than the origin's -- exactly
+  // what crossing midnight means.
+  const result = extractFieldsFromOcrLines([
+    line("02 Jan (Sat)"),
+    line("03 Jan (Sun)"),
+    line("SIN 23:25"),
+    line("LHR 05:55"),
+  ]);
+  assert.equal(result.originAirport, "SIN");
+  assert.equal(result.destinationAirport, "LHR");
+  assert.equal(result.departureDate?.value, "2027-01-02");
+  assert.equal(result.returnDate, undefined);
+});
+
+test("still assigns a returnDate for two dates one day apart when the route's times don't cross midnight", () => {
+  // Guards against the overnight-leg fix above being too broad: it must require all
+  // three signals together (one day apart, AND both codes have a recorded time, AND
+  // destination time earlier than origin time) rather than triggering on "one day
+  // apart" alone. Here MNL departs 09:00 and NRT arrives 11:00 -- ordinary daytime
+  // times, destination later than origin, not an overnight crossing -- so even though
+  // the two dates are one day apart, the second one is a genuine returnDate.
+  const result = extractFieldsFromOcrLines([line("MNL 09:00"), line("NRT 11:00"), line("2026-09-12"), line("2026-09-13")]);
+  assert.equal(result.originAirport, "MNL");
+  assert.equal(result.destinationAirport, "NRT");
+  assert.equal(result.departureDate?.value, "2026-09-12");
+  assert.equal(result.returnDate?.value, "2026-09-13");
+});
+
 test("extracts adult and children counts", () => {
   const result = extractFieldsFromOcrLines([line("Passengers: 2 Adults, 1 Child")]);
   assert.equal(result.adults?.value, 2);
